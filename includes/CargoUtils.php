@@ -581,9 +581,9 @@ class CargoUtils {
 
 			foreach ( $tableNames as $curTable ) {
 				try {
-					$cdb->begin();
+					$cdb->startAtomic( __METHOD__ );
 					$cdb->dropTable( $curTable );
-					$cdb->commit();
+					$cdb->endAtomic( __METHOD__ );
 				} catch ( Exception $e ) {
 					throw new MWException( "Caught exception ($e) while trying to drop Cargo table. "
 					. "Please make sure that your database user account has the DROP permission." );
@@ -725,7 +725,7 @@ class CargoUtils {
 	}
 
 	public static function createCargoTableOrTables( $cdb, $dbw, $tableName, $tableSchema, $tableSchemaString, $templatePageID ) {
-		$cdb->begin();
+		$cdb->startAtomic( __METHOD__ );
 		$cdbTableName = $cdb->addIdentifierQuotes( $cdb->tableName( $tableName, 'plain' ) );
 		$dbType = $cdb->getType();
 		$fieldsInMainTable = array(
@@ -831,7 +831,7 @@ class CargoUtils {
 		}
 
 		// End transaction and apply DB changes.
-		$cdb->commit();
+		$cdb->endAtomic( __METHOD__ );
 
 		// Finally, store all the info in the cargo_tables table.
 		$dbw->insert( 'cargo_tables', array(

@@ -15,6 +15,12 @@
 		"deletecargodata",
 		"runcargoqueries"
 	],
+	"GroupPermissions": {
+		"sysop": {
+			"deletecargodata": true,
+			"recreatecargodata": true
+		}
+	},
 	"SpecialPages": {
 		"CargoTables": "CargoTables",
 		"DeleteCargoTable": "CargoDeleteCargoTable",

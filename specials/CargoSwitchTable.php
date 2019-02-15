@@ -31,7 +31,7 @@ class CargoSwitchCargoTable extends UnlistedSpecialPage {
 	public static function switchInTableReplacement( $mainTable, $fieldTables, $fieldHelperTables ) {
 		$cdb = CargoUtils::getDB();
 		try {
-			$cdb->begin();
+			$cdb->startAtomic( __METHOD__ );
 			$cdb->dropTable( $mainTable );
 			$cdb->query( 'ALTER TABLE ' .
 				$cdb->tableName( $mainTable . '__NEXT' ) .
@@ -58,7 +58,7 @@ class CargoSwitchCargoTable extends UnlistedSpecialPage {
 						$cdb->tableName( $origFieldHelperTable ) );
 				}
 			}
-			$cdb->commit();
+			$cdb->endAtomic( __METHOD__ );
 		} catch ( Exception $e ) {
 			throw new MWException( "Caught exception ($e) while trying to switch in replacement for Cargo table. "
 			. "Please make sure that your database user account has the DROP permission." );

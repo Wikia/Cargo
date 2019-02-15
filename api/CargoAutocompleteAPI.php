@@ -31,7 +31,7 @@ class CargoAutocompleteAPI extends ApiBase {
 		if ( !is_array( $data ) ) {
 			if ( is_callable( array( $this, 'dieWithError' ) ) ) {
 				if ( !$data instanceof Message ) {
-					$data = ApiMessage::create( new RawMessage( '$1', array( $data ) ), 'unknownerror' );
+					$data = ApiMessage::create( new RawMessage( '$1', [ $data ] ), 'unknownerror' );
 				}
 				$this->dieWithError( $data );
 			} else {

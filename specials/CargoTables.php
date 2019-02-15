@@ -370,12 +370,12 @@ class CargoTables extends IncludableSpecialPage {
 					$text .= Html::rawElement( 'li', null, $tableText );
 					continue;
 				}
-				global $wgUser;
+
 				$replacementGeneratedMsg = $this->msg( "cargo-cargotables-replacementgenerated" )->parse();
 				$numRowsText = $this->displayNumRowsForTable( $cdb, $tableName . '__NEXT' );
 				$actionLinks = $this->displayActionLinksForTable( $tableName, true, false );
 				$tableText .= "\n<div class=\"cargoReplacementTableInfo\">$replacementGeneratedMsg ($actionLinks) - $numRowsText";
-				if ( $wgUser->isAllowed( 'recreatecargodata' ) ) {
+				if ( $this->getUser()->isAllowed( 'recreatecargodata' ) ) {
 					$switchURL = SpecialPage::getTitleFor( 'SwitchCargoTable' )->getFullURL() . "/$tableName";
 					$tableText .= "<br />\n" . Html::element( 'a', array( 'href' => $switchURL ),
 						$this->msg( "cargo-cargotables-switch" )->parse() );

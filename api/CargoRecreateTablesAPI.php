@@ -13,9 +13,7 @@ class CargoRecreateTablesAPI extends ApiBase {
 	}
 
 	public function execute() {
-		global $wgUser;
-
-		if ( !$wgUser->isAllowed( 'recreatecargodata' ) || $wgUser->isBlocked() ) {
+		if ( !$this->getUser()->isAllowed( 'recreatecargodata' ) || $wgUser->isBlocked() ) {
 			CargoUtils::dieWithError( $this, array( 'badaccess-groups' ) );
 		}
 
@@ -64,4 +62,11 @@ class CargoRecreateTablesAPI extends ApiBase {
 		);
 	}
 
+	public function mustBePosted() {
+		return true;
+	}
+
+	public function needsToken() {
+		return 'csrf';
+	}
 }
