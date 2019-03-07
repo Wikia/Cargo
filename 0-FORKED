@@ -1,0 +1,2 @@
+This is forked from https://github.com/wikimedia/mediawiki-extensions-Cargo
+Pull in updates into master then use the hydra branch for comparison.
