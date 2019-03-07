@@ -20,6 +20,9 @@
 			"deletecargodata": true,
 			"recreatecargodata": true,
 			"runcargoqueries": true
+		},
+		"user": {
+			"runcargoqueries": true
 		}
 	},
 	"SpecialPages": {
