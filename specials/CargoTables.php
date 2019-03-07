@@ -212,8 +212,6 @@ class CargoTables extends IncludableSpecialPage {
 	}
 
 	function displayActionLinksForTable( $tableName, $isReplacementTable, $hasReplacementTable ) {
-		global $wgUser;
-
 		$canBeRecreated = !$hasReplacementTable && array_key_exists( $tableName, $this->templatesThatDeclareTables );
 		$templateID = $canBeRecreated ? $this->templatesThatDeclareTables[$tableName][0] : null;
 
@@ -250,13 +248,13 @@ class CargoTables extends IncludableSpecialPage {
 		// template defines two tables, this will recreate both of
 		// them), but for standard setups, this makes things more
 		// convenient.
-		if ( $canBeRecreated && $wgUser->isAllowed( 'recreatecargodata' ) ) {
+		if ( $canBeRecreated && $this->getUser()->isAllowed( 'recreatecargodata' ) ) {
 			$templateTitle = Title::newFromID( $templateID );
 			$actionLinks['recreate'] = CargoUtils::makeLink( $linkRenderer, $templateTitle,
 				$this->msg( 'recreatedata' )->text(), array(), array( 'action' => 'recreatedata' ) );
 		}
 
-		if ( $wgUser->isAllowed( 'deletecargodata' ) ) {
+		if ( $this->getUser()->isAllowed( 'deletecargodata' ) ) {
 			$deleteTableURL = SpecialPage::getTitleFor( 'DeleteCargoTable' )->getLocalURL() . "/$tableName";
 			if ( $isReplacementTable ) {
 				$deleteTableURL .= strpos( $deleteTableURL, '?' ) ? '&' : '?';

@@ -13,7 +13,7 @@ class CargoRecreateTablesAPI extends ApiBase {
 	}
 
 	public function execute() {
-		if ( !$this->getUser()->isAllowed( 'recreatecargodata' ) || $wgUser->isBlocked() ) {
+		if ( !$this->getUser()->isAllowed( 'recreatecargodata' ) || $this->getUser()->isBlocked() ) {
 			CargoUtils::dieWithError( $this, array( 'badaccess-groups' ) );
 		}
 
