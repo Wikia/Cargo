@@ -18,7 +18,8 @@
 	"GroupPermissions": {
 		"sysop": {
 			"deletecargodata": true,
-			"recreatecargodata": true
+			"recreatecargodata": true,
+			"runcargoqueries": true
 		}
 	},
 	"SpecialPages": {
