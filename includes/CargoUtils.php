@@ -29,10 +29,10 @@ class CargoUtils {
 		global $wgDBuser, $wgDBpassword, $wgDBprefix, $wgDBservers;
 		global $wgCargoDBserver, $wgCargoDBname, $wgCargoDBuser, $wgCargoDBpassword, $wgCargoDBtype;
 
-		$dbr = wfGetDB( DB_REPLICA );
-		$server = $dbr->getServer();
-		$name = $dbr->getDBname();
-		$type = $dbr->getType();
+		$dbw = wfGetDB( DB_MASTER );
+		$server = $dbw->getServer();
+		$name = $dbw->getDBname();
+		$type = $dbw->getType();
 
 		// We need $wgCargoDBtype for other functions.
 		if ( is_null( $wgCargoDBtype ) ) {
@@ -41,7 +41,7 @@ class CargoUtils {
 		$dbServer = is_null( $wgCargoDBserver ) ? $server : $wgCargoDBserver;
 		$dbName = is_null( $wgCargoDBname ) ? $name : $wgCargoDBname;
 
-		// Server (host), db name, and db type can be retrieved from $dbr via
+		// Server (host), db name, and db type can be retrieved from $dbw via
 		// public methods, but username and password cannot. If these values are
 		// not set for Cargo, get them from either $wgDBservers or wgDBuser and
 		// $wgDBpassword, depending on whether or not there are multiple DB servers.
