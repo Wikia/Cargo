@@ -16,11 +16,7 @@ class CargoViewData extends SpecialPage {
 	}
 
 	function execute( $query ) {
-		// Check permissions.
-		if ( !$this->userCanExecute( $this->getUser() ) ) {
-			$this->displayRestrictionError();
-			return;
-		}
+		$this->checkPermissions();
 
 		$this->setHeaders();
 		$out = $this->getOutput();
