@@ -23,7 +23,7 @@ class CargoDrilldown extends IncludableSpecialPage {
 		global $wgCargoFileDataColumns;
 
 		// Check permissions.
-		if ( !$this->getUser()->isAllowed( 'runcargoqueries' ) ) {
+		if ( !$this->userCanExecute( $this->getUser() ) ) {
 			$this->displayRestrictionError();
 			return;
 		}
