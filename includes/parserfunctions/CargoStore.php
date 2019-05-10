@@ -387,7 +387,7 @@ class CargoStore {
 				'TABLE_SCHEMA' => $cdb->getDBname(),
 			]
 		);
-		if ( $row == false || $row['AUTO_INCREMENT'] == NULL ) {
+		if ( $row == false || $row['AUTO_INCREMENT'] == null ) {
 			// Set _ID manually if we're not using AUTO_INCREMENT.
 			// This is likely to cause errors when cargo_store is being ran concurrently.
 			$res = $cdb->select( $tableName, 'MAX(' .
@@ -396,7 +396,7 @@ class CargoStore {
 			$curRowID = $row['ID'] + 1;
 			$tableFieldValues['_ID'] = $curRowID;
 		} else {
-			$curRowID = $row['AUTO_INCREMENT'];
+			$curRowID = null;
 		}
 		// Somewhat of a @HACK - recreating a Cargo table from the web
 		// interface can lead to duplicate rows, due to the use of jobs.
@@ -479,10 +479,17 @@ class CargoStore {
 
 		// Insert the current data into the main table.
 		CargoUtils::escapedInsert( $cdb, $tableName, $tableFieldValues );
+		if ( $curRowID == null ) {
+			$curRowID = $cdb->insertId();
+		}
 
 		// Now, store the data for all the "field tables".
 		foreach ( $fieldTableFieldValues as $tableNameAndValues ) {
 			list( $fieldTableName, $fieldValues ) = $tableNameAndValues;
+			// Update _rowID if using AUTO_INCREMENT.
+			if ( array_key_exists( '_rowID', $fieldValues ) && $fieldValues['_rowID'] == null ) {
+				$fieldValues['_rowID'] = $curRowID;
+			}
 			CargoUtils::escapedInsert( $cdb, $fieldTableName, $fieldValues );
 		}
 
