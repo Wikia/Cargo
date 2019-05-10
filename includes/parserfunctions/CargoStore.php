@@ -364,16 +364,7 @@ class CargoStore {
 		foreach ( $tableSchema->mFieldDescriptions as $fieldName => $fieldDescription ) {
 			if ( $fieldDescription->mIsList ) {
 				$listFieldTableName = $tableName . '__' . $fieldName;
-				$row = $cdb->selectRow(
-					'INFORMATION_SCHEMA.COLUMNS',
-					'COLUMN_NAME',
-					[
-						'TABLE_NAME' => $listFieldTableName,
-						'TABLE_SCHEMA' => $cdb->getDBname(),
-						'COLUMN_NAME' => '_position'
-					]
-				);
-				$hasPositionField = $row != false;
+				$hasPositionField = $cdb->fieldExists( $listFieldTableName, '_position' );
 				break;
 			}
 		}
