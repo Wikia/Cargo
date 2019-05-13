@@ -15,7 +15,6 @@
 	"right-runcargoqueries": "Run arbitrary Cargo queries",
 	"action-recreatecargodata": "recreate Cargo data",
 	"action-deletecargodata": "delete Cargo data",
-	"action-runcargoqueries": "run Cargo queries",
 	"apihelp-cargoquery-description": "Runs a query on the Cargo data.",
 	"apihelp-cargoquery-summary": "Runs a query on the Cargo data.",
 	"apihelp-cargoquery-param-tables": "The Cargo database table or tables on which to search",
