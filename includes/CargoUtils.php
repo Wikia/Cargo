@@ -871,7 +871,8 @@ class CargoUtils {
 				$sqlType = self::fieldTypeToSQLType( $fieldType, $dbType );
 				if ( $fieldName == '_ID' ) {
 					$fieldOptionsText .= ' NOT NULL';
-					$fieldOptionsText .= ' UNIQUE';
+					$fieldOptionsText .= ' PRIMARY KEY';
+					$fieldOptionsText .= ' AUTO_INCREMENT';
 				}
 			}
 			if ( $firstField ) {
@@ -909,6 +910,11 @@ class CargoUtils {
 			// So we just stop indexing after the first 60.
 			if ( count( $indexedFields ) >= 60 ) {
 				break;
+			}
+
+			// _ID is already the PRIMARY KEY
+			if ( $fieldName == '_ID' ) {
+				continue;
 			}
 
 			if ( is_object( $fieldDescOrType ) ) {
