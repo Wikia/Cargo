@@ -374,11 +374,11 @@ class CargoStore {
 			'INFORMATION_SCHEMA.TABLES',
 			'AUTO_INCREMENT',
 			[
-				'TABLE_NAME' => $tableName,
+				'TABLE_NAME' => $cdb->tablePrefix() . $tableName,
 				'TABLE_SCHEMA' => $cdb->getDBname(),
 			]
 		);
-		if ( $row == false || $row['AUTO_INCREMENT'] == null ) {
+		if ( $row == false || $row->AUTO_INCREMENT == null ) {
 			// Set _ID manually if we're not using AUTO_INCREMENT.
 			// This is likely to cause errors when cargo_store is being ran concurrently.
 			$res = $cdb->select( $tableName, 'MAX(' .
