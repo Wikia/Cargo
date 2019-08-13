@@ -16,7 +16,6 @@ $(document).ready(function() {
 		}
 		var detailsFields = $(this).attr( 'data-details-fields' );
 		if ( detailsFields ) {
-			params['order'] = [1, 'asc'];
 			params['columnDefs'] = [{ "orderable":false, "targets": 0 }];
 		}
 		var table = $(this).DataTable( params );

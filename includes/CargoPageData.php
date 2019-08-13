@@ -44,6 +44,9 @@ class CargoPageData {
 		if ( in_array( 'isRedirect', $wgCargoPageDataColumns ) ) {
 			$fieldTypes['_isRedirect'] = array( 'Boolean', false );
 		}
+		if ( in_array( 'pageNameOrRedirect', $wgCargoPageDataColumns ) ) {
+			$fieldTypes['_pageNameOrRedirect'] = array( 'String', false );
+		}
 
 		$tableSchema = new CargoTableSchema();
 		foreach ( $fieldTypes as $field => $fieldVals ) {
@@ -110,7 +113,7 @@ class CargoPageData {
 		if ( in_array( 'categories', $wgCargoPageDataColumns ) ) {
 			$pageCategories = array();
 			if ( !$setToBlank ) {
-				$dbr = wfGetDB( DB_SLAVE );
+				$dbr = wfGetDB( DB_REPLICA );
 				$res = $dbr->select(
 					'categorylinks',
 					'cl_to',
@@ -126,7 +129,7 @@ class CargoPageData {
 			$pageDataValues['_categories'] = $pageCategoriesString;
 		}
 		if ( in_array( 'numRevisions', $wgCargoPageDataColumns ) ) {
-			$dbr = wfGetDB( DB_SLAVE );
+			$dbr = wfGetDB( DB_REPLICA );
 			$res = $dbr->select(
 				'revision',
 				'COUNT(*) as total',
@@ -138,6 +141,15 @@ class CargoPageData {
 		}
 		if ( in_array( 'isRedirect', $wgCargoPageDataColumns ) ) {
 			$pageDataValues['_isRedirect'] = ( $title->isRedirect() ? 1 : 0 );
+		}
+		if ( in_array( 'pageNameOrRedirect', $wgCargoPageDataColumns ) ) {
+			if ( $title->isRedirect() ) {
+				$page = WikiPage::factory( $title );
+				$redirTitle = $page->getRedirectTarget();
+				$pageDataValues['_pageNameOrRedirect'] = $redirTitle->getPrefixedText();
+			} else {
+				$pageDataValues['_pageNameOrRedirect'] = $title->getPrefixedText();
+			}
 		}
 
 		CargoStore::storeAllData( $title, '_pageData', $pageDataValues, $tableSchemas['_pageData'] );

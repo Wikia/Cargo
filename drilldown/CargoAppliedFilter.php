@@ -25,7 +25,7 @@ class CargoAppliedFilter {
 		if ( $search_terms != null ) {
 			$af->search_terms = array();
 			foreach ( $search_terms as $search_term ) {
-				$af->search_terms[] = htmlspecialchars( str_replace( '_', ' ', $search_term ) );
+				$af->search_terms[] = htmlspecialchars( $search_term );
 			}
 		}
 		if ( $lower_date != null ) {
@@ -144,7 +144,9 @@ class CargoAppliedFilter {
 					$sql .= "( (" . $leftCond . ") AND (" . $rightCond . ") )";
 				}
 			} elseif ( $fv->is_none ) {
-				$checkNullOrEmptySql = ( $cdb->getType() == 'postgres' ? '' : "$value_field = '' OR " ) .
+				// For some reason, 0 values are treated as
+				// blank, so we need the "!= 0" check.
+				$checkNullOrEmptySql = ( $cdb->getType() == 'postgres' ? '' : "($value_field = '' AND $value_field != 0) OR " ) .
 					"$value_field IS NULL";
 				$sql .= "($checkNullOrEmptySql) ";
 			} elseif ( $this->filter->fieldDescription->isDateOrDatetime() ) {

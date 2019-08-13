@@ -52,6 +52,7 @@ class CargoQueryDisplayer {
 			'slideshow' => 'CargoSlideshowFormat',
 			'tag cloud' => 'CargoTagCloudFormat',
 			'exhibit' => 'CargoExhibitFormat',
+			'bibtex' => 'CargoBibtexFormat',
 		);
 		return $formatClasses;
 	}
@@ -88,6 +89,7 @@ class CargoQueryDisplayer {
 
 	public function getFormattedQueryResults( $queryResults ) {
 		// The assignment will do a copy.
+		global $wgScriptPath, $wgServer;
 		$formattedQueryResults = $queryResults;
 		foreach ( $queryResults as $rowNum => $row ) {
 			foreach ( $row as $fieldName => $value ) {
@@ -158,6 +160,11 @@ class CargoQueryDisplayer {
 				} elseif ( $fieldType == 'Searchtext' && $this->mSQLQuery && array_key_exists( $fieldName, $this->mSQLQuery->mSearchTerms ) ) {
 					$searchTerms = $this->mSQLQuery->mSearchTerms[$fieldName];
 					$text = Html::rawElement( 'span', array( 'class' => 'searchresult' ), self::getTextSnippet( $value, $searchTerms ) );
+				} elseif ( $fieldType == 'Rating' ) {
+					$rate = $value * 20;
+					$url = $wgServer . $wgScriptPath . '/' . 'extensions/Cargo/images/star-rating-sprite-1.png';
+					$text = '<span style="display: block; width: 65px; height: 13px; background: url(\'' . $url .'\') 0 0;">
+						<span style="display: block; width: '. $rate .'%; height: 13px; background: url(\'' . $url .'\') 0 -13px;"></span>';
 				} else {
 					$text = self::formatFieldValue( $value, $fieldType, $fieldDescription, $this->mParser );
 				}
@@ -206,7 +213,7 @@ class CargoQueryDisplayer {
 			// Hide the namespace in the display?
 			global $wgCargoHideNamespaceName;
 			if ( in_array( $title->getNamespace(), $wgCargoHideNamespaceName ) ) {
-				return CargoUtils::makeLink( $linkRenderer, $title, $title->getRootText() );
+				return CargoUtils::makeLink( $linkRenderer, $title, htmlspecialchars( $title->getRootText() ) );
 			} else {
 				return CargoUtils::makeLink( $linkRenderer, $title );
 			}
@@ -226,8 +233,13 @@ class CargoQueryDisplayer {
 				return Html::element( 'a', array( 'href' => $value ),
 						$fieldDescription->mOtherParams['link text'] );
 			} else {
-				// Otherwise, do nothing.
-				return $value;
+				// Otherwise, display the URL as a link.
+				global $wgNoFollowLinks;
+				$linkParams = array( 'href' => $value, 'class' => 'external free' );
+				if ( $wgNoFollowLinks ) {
+					$linkParams['rel'] = 'nofollow';
+				}
+				return Html::element( 'a', $linkParams, $value );
 			}
 		} elseif ( $type == 'Date' || $type == 'Datetime' ) {
 			// This should not get called - date fields
@@ -299,7 +311,15 @@ class CargoQueryDisplayer {
 	 */
 	function getTextSnippet( $text, $terms ) {
 		global $wgAdvancedSearchHighlighting;
-		list( $contextlines, $contextchars ) = SearchEngine::userHighlightPrefs();
+		if ( defined( '\SearchHighlighter::DEFAULT_CONTEXT_LINES' ) ) {
+			// MW 1.34+
+			// TODO: once the else block is removed simply drop these vars
+			// SearchHighlighter methods take these same values as defaults.
+			$contextlines = SearchHighlighter::DEFAULT_CONTEXT_LINES;
+			$contextchars = SearchHighlighter::DEFAULT_CONTEXT_CHARS;
+		} else {
+			list( $contextlines, $contextchars ) = SearchEngine::userHighlightPrefs();
+		}
 
 		foreach ( $terms as $i => $term ) {
 			// Try to map from a MySQL search to a PHP one -
@@ -361,7 +381,7 @@ class CargoQueryDisplayer {
 	public function viewMoreResultsLink( $displayHTML = true ) {
 		$vd = Title::makeTitleSafe( NS_SPECIAL, 'ViewData' );
 		if ( array_key_exists( 'more results text', $this->mDisplayParams ) ) {
-			$moreResultsText = $this->mDisplayParams['more results text'];
+			$moreResultsText = htmlspecialchars( $this->mDisplayParams['more results text'] );
 			// If the value is blank, don't show a link at all.
 			if ( $moreResultsText == '' ) {
 				return '';
