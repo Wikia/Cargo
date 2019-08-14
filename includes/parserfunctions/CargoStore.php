@@ -550,6 +550,6 @@ class CargoStore {
 		}
 		$res = $cdb->select( $tableName, 'COUNT(*)', $tableFieldValuesForCheck );
 		$row = $cdb->fetchRow( $res );
-		return ( $row[0] > 0 );
+		return ( $row[COUNT(*)] > 0 );
 	}
 }
