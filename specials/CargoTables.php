@@ -233,7 +233,7 @@ class CargoTables extends IncludableSpecialPage {
 		// Actions for this table - this display is modeled on
 		// Special:ListUsers.
 		$drilldownPage = SpecialPageFactory::getPage( 'Drilldown' );
-		$drilldownURL = $drilldownPage->getTitle()->getLocalURL() . '/' . $tableName;
+		$drilldownURL = $drilldownPage->getPageTitle()->getLocalURL() . '/' . $tableName;
 		$drilldownURL .= strpos( $drilldownURL, '?' ) ? '&' : '?';
 		if ( $isReplacementTable ) {
 			$drilldownURL .= "_replacement";
@@ -251,7 +251,7 @@ class CargoTables extends IncludableSpecialPage {
 		if ( $canBeRecreated && $this->getUser()->isAllowed( 'recreatecargodata' ) ) {
 			$templateTitle = Title::newFromID( $templateID );
 			$actionLinks['recreate'] = CargoUtils::makeLink( $linkRenderer, $templateTitle,
-				$this->msg( 'recreatedata' )->text(), array(), array( 'action' => 'recreatedata' ) );
+				$this->msg( 'recreatedata' )->escaped(), array(), array( 'action' => 'recreatedata' ) );
 		}
 
 		if ( $this->getUser()->isAllowed( 'deletecargodata' ) ) {

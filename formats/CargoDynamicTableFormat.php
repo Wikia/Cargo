@@ -25,10 +25,15 @@ class CargoDynamicTableFormat extends CargoDisplayFormat {
 	function display( $valuesTable, $formattedValuesTable, $fieldDescriptions, $displayParams ) {
 		$this->mOutput->addModules( 'ext.cargo.datatables' );
 
+		$detailsFields = array();
+		$detailsFieldsString = '';
+		if ( array_key_exists( 'details fields', $displayParams ) ) {
+			$detailsFields = array_map( 'trim', explode( ',', $displayParams['details fields'] ) );
+			$detailsFieldsString = "data-details-fields=1";
+		}
 		// Special handlng for ordering.
-		$dataOrderString = null;
+		$dataTableOrderByParams = array();
 		if ( array_key_exists( 'order by', $displayParams ) ) {
-			$dataTableOrderByParams = array();
 			$orderByClauses = explode( ',', $displayParams['order by'] );
 			foreach ( $orderByClauses as $orderByClause ) {
 				$orderByClause = strtolower( trim( $orderByClause ) );
@@ -39,35 +44,36 @@ class CargoDynamicTableFormat extends CargoDisplayFormat {
 					$sortAscending = false;
 					$orderByClause = trim( substr( $orderByClause, 0, -4 ) );
 				}
-				foreach ( array_keys( $fieldDescriptions ) as $i => $fieldName ) {
+				if ( $detailsFields ) {
+					$i = 1;
+				} else {
+					$i = 0;
+				}
+				foreach ( $fieldDescriptions as $fieldName => $fieldDescription ) {
+					if ( in_array( $fieldName, $detailsFields ) ) {
+						continue;
+					}
 					$fieldName = strtolower( str_replace( ' ', '_', $fieldName ) );
 					if ( $orderByClause == $fieldName ) {
 						$dataTableOrderByParams[] = array( $i, $sortAscending ? 'asc' : 'desc' );
 					}
+					$i++;
 				}
 			}
-			if ( count( $dataTableOrderByParams ) > 0 ) {
-				// We have to set the text in this awkward way,
-				// instead of using the Html class, because it
-				// has to be displayed in a very specific way -
-				// single quotes outside, double quotes inside -
-				// for the jQuery part to work, and the Html
-				// class won't do it that way.
-				$dataOrderString = "data-order='" . json_encode( $dataTableOrderByParams ) . "'";
-			}
 		}
+		// We have to set the text in this awkward way,
+		// instead of using the Html class, because it
+		// has to be displayed in a very specific way -
+		// single quotes outside, double quotes inside -
+		// for the jQuery part to work, and the Html
+		// class won't do it that way.
+		$dataOrderString = "data-order='" . json_encode( $dataTableOrderByParams ) . "'";
 
 		if ( array_key_exists( 'rows per page', $displayParams ) ) {
 			// See $dataOrderString above for why it's done this way.
 			$pageLengthString = 'data-page-length="' . $displayParams['rows per page'] . '"';
 		} else {
 			$pageLengthString = '';
-		}
-		$detailsFields = array();
-		$detailsFieldsString = '';
-		if ( array_key_exists( 'details fields', $displayParams ) ) {
-			$detailsFields = array_map( 'trim', explode( ',', $displayParams['details fields'] ) );
-			$detailsFieldsString = "data-details-fields=1";
 		}
 		$text = '';
 		if ( array_key_exists( 'hidden fields', $displayParams ) ) {
@@ -160,25 +166,30 @@ END;
 
 END;
 
-		foreach ( $formattedValuesTable as $row ) {
+		foreach ( $formattedValuesTable as $rowNum => $row ) {
 			if ( $detailsFields ) {
 				$tableData = Html::rawElement( 'td', array( 'class' => 'details-control' ), null );
 			} else {
 				$tableData = '';
 			}
 			$details = '';
-			foreach ( array_keys( $fieldDescriptions ) as $field ) {
+			foreach ( $fieldDescriptions as $field => $fieldDescription ) {
+				$attribs = null;
+				$value = null;
+
 				if ( array_key_exists( $field, $row ) ) {
 					$value = $row[$field];
-				} else {
-					$value = null;
+					if ( $fieldDescription->isDateOrDatetime() ) {
+						$attribs = array( 'data-order' => $valuesTable[$rowNum][$field] );
+					}
 				}
+
 				if ( in_array( $field, $detailsFields ) ) {
-					$detailsText = "\t\t\t\t" . Html::rawElement( 'td', null, "<strong>$field: </strong>" );
-					$detailsText .= "\t\t\t\t" . Html::rawElement( 'td', null, $value );
-					$details .= "\t\t\t" . Html::rawElement( 'tr', null,  $detailsText );
+					$detailsText = "\t\t\t\t" . Html::rawElement( 'td', $attribs, "<strong>$field: </strong>" );
+					$detailsText .= "\t\t\t\t" . Html::rawElement( 'td', $attribs, $value );
+					$details .= "\t\t\t" . Html::rawElement( 'tr', $attribs,  $detailsText );
 				} else {
-					$tableData .= "\t\t\t\t" . Html::rawElement( 'td', null, $value );
+					$tableData .= "\t\t\t\t" . Html::rawElement( 'td', $attribs, $value );
 				}
 			}
 			$detailsTable =

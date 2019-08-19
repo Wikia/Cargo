@@ -1,10 +1,11 @@
 {
 	"name": "Cargo",
 	"namemsg": "cargo-extensionname",
-	"version": "2.1.2",
+	"version": "2.2",
 	"author": "Yaron Koren",
 	"url": "https://www.mediawiki.org/wiki/Extension:Cargo",
 	"descriptionmsg": "cargo-desc",
+	"license-name": "GPL-2.0-or-later",
 	"type": "parserhook",
 	"requires": {
 		"MediaWiki": ">= 1.25.3"
@@ -130,6 +131,7 @@
 		"CargoSlideshowFormat": "formats/CargoSlideshowFormat.php",
 		"CargoTagCloudFormat": "formats/CargoTagCloudFormat.php",
 		"CargoExhibitFormat": "formats/CargoExhibitFormat.php",
+		"CargoBibtexFormat": "formats/CargoBibtexFormat.php",
 		"CargoSearchMySQL": "includes/search/CargoSearchMySQL.php",
 		"CargoPageSchemas": "includes/CargoPageSchemas.php",
 		"CargoAppliedFilter": "drilldown/CargoAppliedFilter.php",
@@ -374,8 +376,39 @@
 		"CargoMaxVisibleHierarchyDrilldownValues": 30,
 		"CargoPageDataColumns": [],
 		"CargoFileDataColumns": [],
-		"CargoHideNamespaceName": [6],
-		"CargoAllowedSQLFunctions":["COUNT", "FLOOR", "CEIL", "ROUND","MAX", "MIN", "AVG", "SUM", "POWER", "LN", "LOG","CONCAT", "GROUP_CONCAT", "LOWER", "LCASE", "UPPER", "UCASE", "SUBSTRING", "TRIM", "FORMAT", "NOW", "DATE", "YEAR", "MONTH", "DAYOFMONTH", "DATE_FORMAT", "DATE_ADD", "DATE_SUB", "DATEDIFF", "NEAR"]
+		"CargoHideNamespaceName": [ 6 ],
+		"CargoAllowedSQLFunctions": [
+			"AVG",
+			"CEIL",
+			"CONCAT",
+			"COUNT",
+			"DATE",
+			"DATE_ADD",
+			"DATE_FORMAT",
+			"DATE_SUB",
+			"DATEDIFF",
+			"DAYOFMONTH",
+			"FLOOR",
+			"FORMAT",
+			"GROUP_CONCAT",
+			"LCASE",
+			"LN",
+			"LOG",
+			"LOWER",
+			"MAX",
+			"MIN",
+			"MONTH",
+			"NEAR",
+			"NOW",
+			"POWER",
+			"ROUND",
+			"SUBSTRING",
+			"SUM",
+			"TRIM",
+			"UCASE",
+			"UPPER",
+			"YEAR"
+		]
 	},
 	"manifest_version": 1
 }

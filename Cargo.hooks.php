@@ -11,7 +11,7 @@ class CargoHooks {
 	public static function registerExtension() {
 		global $cgScriptPath, $wgScriptPath, $wgCargoFieldTypes, $wgGroupPermissions;
 
-		define( 'CARGO_VERSION', '2.1.1' );
+		define( 'CARGO_VERSION', '2.2' );
 
 		// Script path.
 		$cgScriptPath = $wgScriptPath . '/extensions/Cargo';
@@ -19,7 +19,7 @@ class CargoHooks {
 		$wgCargoFieldTypes = array(
 			'Page', 'String', 'Text', 'Integer', 'Float', 'Date',
 			'Datetime', 'Boolean', 'Coordinates', 'Wikitext',
-			'Searchtext', 'File', 'URL', 'Email'
+			'Searchtext', 'File', 'URL', 'Email', 'Rating'
 		);
 	}
 
@@ -54,9 +54,8 @@ class CargoHooks {
 		// the language of the user.
 		$vars['wgCargoMonthNames'] = $out->getLanguage()->getMonthNamesArray();
 		/**
-		 * @TODO - all these arrays should perhaps be switched to start
-		 * keys from 1, in order to match built-in arrays, such as
-		 * $wgMonthNames.
+		 * @TODO - should these be switched to objects with keys starting
+		 *         from 1 to match month indexes instead of 0-index?
 		 */
 		array_shift( $vars['wgCargoMonthNames'] ); // start keys from 0
 
@@ -313,11 +312,11 @@ class CargoHooks {
 			$curMainTable = $row['table_name'];
 			$cdb->update( $curMainTable,
 				array(
-					'_pageName' => $newPageName,
-					'_pageTitle' => $newPageTitle,
-					'_pageNamespace' => $newPageNamespace
+					$cdb->addIdentifierQuotes( '_pageName' ) => $newPageName,
+					$cdb->addIdentifierQuotes( '_pageTitle' ) => $newPageTitle,
+					$cdb->addIdentifierQuotes( '_pageNamespace' ) => $newPageNamespace
 				),
-				array( '_pageID' => $oldid )
+				array( $cdb->addIdentifierQuotes( '_pageID' ) => $oldid )
 			);
 		}
 
@@ -327,11 +326,11 @@ class CargoHooks {
 			if ( $cdb->tableExists( $generalTable ) ) {
 				$cdb->update( $generalTable,
 					array(
-						'_pageName' => $newPageName,
-						'_pageTitle' => $newPageTitle,
-						'_pageNamespace' => $newPageNamespace
+						$cdb->addIdentifierQuotes( '_pageName' ) => $newPageName,
+						$cdb->addIdentifierQuotes( '_pageTitle' ) => $newPageTitle,
+						$cdb->addIdentifierQuotes( '_pageNamespace' ) => $newPageNamespace
 					),
-					array( '_pageID' => $oldid )
+					array( $cdb->addIdentifierQuotes( '_pageID' ) => $oldid )
 				);
 			}
 		}

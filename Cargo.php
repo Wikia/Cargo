@@ -25,7 +25,7 @@ if ( version_compare( $GLOBALS['wgVersion'], '1.27', '>=' ) ) {
 
 // All the rest is for backward compatibility, for MW 1.26 and lower.
 
-define( 'CARGO_VERSION', '2.1.1' );
+define( 'CARGO_VERSION', '2.2' );
 
 $wgExtensionCredits['parserhook'][] = array(
 	'path' => __FILE__,
@@ -35,13 +35,13 @@ $wgExtensionCredits['parserhook'][] = array(
 	'author' => 'Yaron Koren',
 	'url' => 'https://www.mediawiki.org/wiki/Extension:Cargo',
 	'descriptionmsg' => 'cargo-desc',
+	'license-name' => 'GPL-2.0-or-later'
 );
 
 $dir = __DIR__ . '/';
 
 // Script path.
 $cgScriptPath = $wgScriptPath . '/extensions/Cargo';
-
 $wgJobClasses['cargoPopulateTable'] = 'CargoPopulateTableJob';
 
 $wgHooks['ParserFirstCallInit'][] = 'CargoHooks::registerParserFunctions';
@@ -349,7 +349,7 @@ $wgResourceModules += array(
 $wgCargoFieldTypes = array(
 	'Page', 'String', 'Text', 'Integer', 'Float', 'Date', 'Datetime',
 	'Boolean', 'Coordinates', 'Wikitext', 'Searchtext', 'File', 'URL',
-	'Email'
+	'Email', 'Rating'
 );
 $wgCargoAllowedSQLFunctions = array(
 	// Math functions

@@ -6,6 +6,9 @@
  * @ingroup Cargo
  */
 
+use MediaWiki\Linker\LinkRenderer;
+use MediaWiki\Linker\LinkTarget;
+
 class CargoUtils {
 
 	static $CargoDB = null;
@@ -69,6 +72,10 @@ class CargoUtils {
 			'dbname' => $dbName,
 			'tablePrefix' => $dbTablePrefix,
 		);
+
+		if ( $type === "sqlite" ) {
+			$params['dbFilePath'] = $dbr->getDbFilePath();
+		}
 
 		if ( class_exists( 'Database' ) ) {
 			// MW 1.27+
@@ -625,7 +632,7 @@ class CargoUtils {
 				case "oracle":
 					return 'Number';
 			}
-		} elseif ( $fieldType == 'Float' ) {
+		} elseif ( $fieldType == 'Float' || $fieldType == 'Rating' ) {
 			switch ( $dbType ) {
 				case "mssql":
 					return 'Float';
@@ -1144,16 +1151,27 @@ class CargoUtils {
 	}
 
 	/**
-	 * Helper function for backward compatibility.
+	 *
+	 * @param LinkRenderer|null $linkRenderer
+	 * @param LinkTarget|Title $title
+	 * @param string|null $msg Must already be HTML escaped
+	 * @param array $attrs link attributes
+	 * @param array $params query parameters
+	 *
+	 * @return string HTML link
 	 */
 	public static function makeLink( $linkRenderer, $title, $msg = null, $attrs = array(), $params = array() ) {
+		global $wgTitle;
+
 		if ( is_null( $title ) ) {
 			return null;
-		} elseif ( !is_null( $linkRenderer ) ) {
+		} elseif ( !is_null( $wgTitle ) && $title->equals( $wgTitle ) ) {
+			// Display bolded text instead of a link.
+			return Linker::makeSelfLinkObj( $title, $msg );
+		} elseif ( $linkRenderer !== null ) {
 			// MW 1.28+
-			// Is there a makeLinkKnown() method? We'll just add the
-			// 'known' manually.
-			return $linkRenderer->makeLink( $title, $msg, $attrs, $params, array( 'known' ) );
+			$html = ( $msg == null ) ? null : new HtmlArmor( $msg );
+			return $linkRenderer->makeKnownLink( $title, $html, $attrs, $params );
 		} else {
 			return Linker::linkKnown( $title, $msg, $attrs, $params );
 		}

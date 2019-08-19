@@ -158,13 +158,21 @@ class CargoDrilldown extends IncludableSpecialPage {
 					if ( $cdb->tableExists( $tableName ) ) {
 						if ( $fieldDescription->mIsList ) {
 							$queriedTableName = $tableName . '__' . $fieldName;
-							$queriedFieldName = '_value';
+							$queriedFieldName = $cdb->addIdentifierQuotes( '_value' );
 						} else {
 							$queriedTableName = $tableName;
-							$queriedFieldName = $fieldName;
+							$queriedFieldName = $cdb->addIdentifierQuotes( $fieldName );
+						}
+						$dbType = $cdb->getType();
+						if ( $dbType == 'mysql' ) {
+							$daysSpanQuery = "DATEDIFF(MAX($queriedFieldName), MIN($queriedFieldName))";
+						} else {
+							// PostgreSQL lacks DATEDIFF().
+							// @TODO - what about SQLite?
+							$daysSpanQuery = "(MAX($queriedFieldName) - MIN($queriedFieldName))";
 						}
 						$res = $cdb->select( $queriedTableName,
-							"DATEDIFF(MAX($queriedFieldName), MIN($queriedFieldName))/ COUNT(*) as avgDaysPerEvent" );
+							"$daysSpanQuery / COUNT(*) as avgDaysPerEvent" );
 						$row = $cdb->fetchRow( $res );
 						if ( $row['avgDaysPerEvent'] < 8 ) {
 							$calendarFields[$fieldName] = '';
@@ -200,9 +208,6 @@ class CargoDrilldown extends IncludableSpecialPage {
 			$lower_date = $request->getArray( '_lower_' . $filter_name );
 			$upper_date = $request->getArray( '_upper_' . $filter_name );
 			if ( $vals_array = $request->getArray( $filter_name ) ) {
-				foreach ( $vals_array as $j => $val ) {
-					$vals_array[$j] = str_replace( '_', ' ', $val );
-				}
 				// If it has both search_terms and normal filter values
 				if ( $search_terms != null ) {
 					$applied_filters[] =
@@ -394,10 +399,9 @@ class CargoDrilldownPage extends QueryPage {
 				if ( $this->parentTables && $af->filter->tableName != $this->tableName ) {
 					$url .= urlencode( str_replace( array( '_alias', ' ' ), array( '', '_' ),
 						ucfirst( $af->filter->tableAlias ) . '.' . $af->filter->name ) ) . "=" .
-						urlencode( str_replace( ' ', '_', $af->values[0]->text ) );
+						urlencode( $af->values[0]->text );
 				} else {
-					$url .= urlencode( str_replace( ' ', '_', $af->filter->name ) ) . "=" .
-							urlencode( str_replace( ' ', '_', $af->values[0]->text ) );
+					$url .= urlencode( $af->filter->name ) . "=" . urlencode( $af->values[0]->text );
 				}
 			} else {
 				usort( $af->values, array( "CargoFilterValue", "compare" ) );
@@ -405,11 +409,11 @@ class CargoDrilldownPage extends QueryPage {
 					$url .= ( strpos( $url, '?' ) ) ? '&' : '?';
 					if ( $this->parentTables && $af->filter->tableName != $this->tableName ) {
 						$url .= urlencode( str_replace( array( '_alias', ' ' ), array( '', '_' ),
-								ucfirst( $af->filter->tableAlias ) . '.' . $af->filter->name ) ) .
-								"[$j]=" . urlencode( str_replace( ' ', '_', $fv->text ) );
+							ucfirst( $af->filter->tableAlias ) . '.' . $af->filter->name ) ) .
+							"[$j]=" . urlencode( $fv->text );
 					} else {
 						$url .= urlencode( str_replace( ' ', '_', $af->filter->name ) ) . "[$j]=" .
-								urlencode( str_replace( ' ', '_', $fv->text ) );
+							urlencode( $fv->text );
 					}
 				}
 			}
@@ -418,14 +422,11 @@ class CargoDrilldownPage extends QueryPage {
 					$url .= ( strpos( $url, '?' ) ) ? '&' : '?';
 					if ( $this->parentTables != null && $af->filter->tableName != $this->tableName ) {
 						$url .= '_search_' . urlencode( str_replace( array( '_alias', ' ' ), array( '', '_' ),
-									ucfirst( $af->filter->tableAlias ) . '.' . $af->filter->name ) .
-														'[' . $j . ']' ) . "=" .
-								urlencode( str_replace( ' ', '_', $search_term ) );
+							ucfirst( $af->filter->tableAlias ) . '.' . $af->filter->name ) .
+							'[' . $j . ']' ) . "=" . urlencode( $search_term );
 					} else {
-						$url .= '_search_' .
-								urlencode( str_replace( ' ', '_', $af->filter->name ) . '[' . $j .
-										   ']' ) . "=" .
-								urlencode( str_replace( ' ', '_', $search_term ) );
+						$url .= '_search_' . urlencode( str_replace( ' ', '_', $af->filter->name ) .
+							'[' . $j . ']' ) . "=" . urlencode( $search_term );
 					}
 				}
 			}
@@ -593,14 +594,13 @@ END;
 	 * special case like 'other', 'none', a boolean, etc.
 	 */
 	function printFilterValue( $filter, $value ) {
-		$value = str_replace( '_', ' ', $value );
-		// if it's boolean, display something nicer than "0" or "1"
-		if ( $value === ' other' ) {
+		// If it's boolean, display something nicer than "0" or "1".
+		if ( $value === '_other' ) {
 			return Html::element( 'span', array( 'style' => 'font-style: italic;' ),
-					$this->msg( 'htmlform-selectorother-other' )->text() );
-		} elseif ( $value === ' none' ) {
+				$this->msg( 'htmlform-selectorother-other' )->text() );
+		} elseif ( $value === '_none' ) {
 			return Html::element( 'span', array( 'style' => 'font-style: italic;' ),
-					$this->msg( 'powersearch-togglenone' )->text() );
+				$this->msg( 'powersearch-togglenone' )->text() );
 		} elseif ( $filter->fieldDescription->mType === 'Boolean' ) {
 			// Use existing MW messages for "Yes" and "No".
 			if ( $value == true ) {
@@ -808,11 +808,11 @@ END;
 				$filter_url =
 					$cur_url . urlencode( str_replace( array( '_alias', ' ' ), array( '', '_' ),
 						ucfirst( $f->tableAlias ) . '.' . $f->name ) ) . '=' .
-					urlencode( str_replace( ' ', '_', $value_str ) );
+					urlencode( $value_str );
 			} else {
 				$filter_url =
 					$cur_url . urlencode( str_replace( ' ', '_', $f->name ) ) . '=' .
-					urlencode( str_replace( ' ', '_', $value_str ) );
+					urlencode( $value_str );
 			}
 			$results_line .= $this->printFilterValueLink( $f, $value_str, $num_results, $filter_url, $filter_values );
 		}
@@ -851,11 +851,11 @@ END;
 							$cur_url .
 							urlencode( str_replace( ' ', '_', ucfirst( $f->tableAlias ) . '.' . $f->name ) ) .
 							'=' .
-							urlencode( str_replace( ' ', '_', "~within_" . $node->mRootValue ) );
+							urlencode( "~within_" . $node->mRootValue );
 					} else {
 						$filter_url =
 							$cur_url . urlencode( str_replace( ' ', '_', $f->name ) ) . '=' .
-							urlencode( str_replace( ' ', '_', "~within_" . $node->mRootValue ) );
+							urlencode( "~within_" . $node->mRootValue );
 					}
 					// generate respective <a> tag with value and its count
 					$results_line .= ( $node === $drilldownHierarchyRoot ) ? $node->mRootValue . " ($node->mWithinTreeMatchCount)" :
@@ -871,11 +871,11 @@ END;
 								$filter_url =
 									$cur_url . urlencode( str_replace( ' ', '_',
 										ucfirst( $f->tableAlias ) . '.' . $f->name ) ) . '=' .
-									urlencode( str_replace( ' ', '_', $node->mRootValue ) );
+									urlencode( $node->mRootValue );
 							} else {
 								$filter_url =
 									$cur_url . urlencode( str_replace( ' ', '_', $f->name ) ) .
-									'=' . urlencode( str_replace( ' ', '_', $node->mRootValue ) );
+									'=' . urlencode( $node->mRootValue );
 							}
 							$results_line .= $this->printFilterValueLink( $f,
 								wfMessage( 'cargo-drilldown-hierarchy-only', $node->mRootValue )->parse(),
@@ -1114,7 +1114,7 @@ END;
 		$numberArray = array();
 		$numNoneValues = 0;
 		foreach ( $filter_values as $value => $num_instances ) {
-			if ( $value == ' none' ) {
+			if ( $value == '_none' ) {
 				$numNoneValues = $num_instances;
 			} else {
 				for ( $i = 0; $i < $num_instances; $i++ ) {
@@ -1132,7 +1132,7 @@ END;
 		// beginning of the array.
 		if ( $numNoneValues > 0 ) {
 			$noneBucket = array(
-				'lowerNumber' => ' none',
+				'lowerNumber' => '_none',
 				'higherNumber' => null,
 				'numValues' => $numNoneValues
 			);
@@ -1143,8 +1143,8 @@ END;
 			if ( $i > 0 ) {
 				$text .= " &middot; ";
 			}
-			if ( $curBucket['lowerNumber'] === ' none' ) {
-				$curText = $this->printFilterValue( null, ' none' );
+			if ( $curBucket['lowerNumber'] === '_none' ) {
+				$curText = $this->printFilterValue( null, '_none' );
 			} else {
 				$curText = $this->printNumber( $curBucket['lowerNumber'] );
 				if ( $curBucket['higherNumber'] != null ) {
@@ -1308,9 +1308,8 @@ END;
 END;
 		foreach ( $filter_values as $value => $num_instances ) {
 			if ( $value != '_other' && $value != '_none' ) {
-				$display_value = str_replace( '_', ' ', $value );
 				$text .= "\t\t" . Html::element( 'option', array(
-						'value' => $display_value ), $display_value ) . "\n";
+						'value' => $value ), $value ) . "\n";
 			}
 		}
 
@@ -1431,7 +1430,7 @@ END;
 		$normal_filter = true;
 		if ( count( $filter_values ) == 0 ) {
 			$results_line = '(' . $this->msg( 'cargo-drilldown-novalues' )->text() . ')';
-		} elseif ( $fieldType == 'Integer' || $fieldType == 'Float' ) {
+		} elseif ( $fieldType == 'Integer' || $fieldType == 'Float' || $fieldType == 'Rating' ) {
 			$results_line = $this->printNumberRanges( $filter_name, $filter_values );
 		} elseif ( count( $filter_values ) >= 250 ) {
 			list( $displayedValues, $undisplayedValues ) = $this->splitIntoDisplayedAndUndisplayedFilterValues( $filter_values );
@@ -1472,7 +1471,7 @@ END;
 		if ( $this->isReplacementTable ) {
 			$this->tableName = str_replace( '__NEXT', '', $this->tableName );
 			$ctPage = SpecialPageFactory::getPage( 'CargoTables' );
-			$ctURL = $ctPage->getTitle()->getFullText();
+			$ctURL = $ctPage->getPageTitle()->getFullText();
 			$viewURL = "$ctURL/" . $this->tableName;
 			$viewLink = "[[$viewURL|{$this->tableName}]]";
 			$header .= Html::rawElement( 'div',
@@ -2148,6 +2147,8 @@ END;
 				}
 			}
 		}
+
+		$extraAliasedFields = array();
 		if ( $this->fullTextSearchTerm != null ) {
 			$fileDataTableName = '_fileData';
 			$fileDataTableAlias = CargoUtils::makeDifferentAlias( $fileDataTableName );
@@ -2158,7 +2159,7 @@ END;
 				$aliasedFieldNames[$fileTextAlias] = CargoUtils::escapedFieldName( $cdb, array(
 					$fileDataTableAlias => $fileDataTableName ),
 					'_fullText' );
-				$aliasedFieldNames['foundFileMatch'] = '1';
+				$extraAliasedFields['foundFileMatch'] = '1';
 				$fieldsStr[] = "$fileDataTableAlias._fullText=$fileTextAlias";
 			} else {
 				$pageTextAlias = $this->msg( 'cargo-drilldown-pagetext' )->text();
@@ -2238,7 +2239,7 @@ END;
 
 		$queryInfo = array(
 			'tables' => $tableNames,
-			'fields' => $aliasedFieldNames,
+			'fields' => array_merge( $aliasedFieldNames, $extraAliasedFields ),
 			'conds' => $conds,
 			'join_conds' => $joinConds,
 			'options' => $queryOptions
@@ -2312,7 +2313,7 @@ END;
 	function getOrderFields() {
 		$cdb = CargoUtils::getDB();
 		return array( CargoUtils::escapedFieldName( $cdb, array( $this->tableAlias => $this->tableName ),
-		'_pageTitle' ) );
+			'_pageName' ) );
 	}
 
 	function sortDescending() {
@@ -2335,7 +2336,7 @@ END;
 	 *
 	 * @param OutputPage $out OutputPage to print to
 	 * @param Skin $skin User skin to use - Unused
-	 * @param Database $dbr Database (read) connection to use
+	 * @param IDatabase $dbr Database (read) connection to use
 	 * @param int $res Result pointer
 	 * @param int $num Number of available result rows - Unused
 	 * @param int $offset Paging offset - Unused
