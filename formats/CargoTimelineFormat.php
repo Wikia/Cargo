@@ -5,8 +5,12 @@
  */
 
 class CargoTimelineFormat extends CargoDeferredFormat {
-	function allowedParameters() {
-		return array( 'width', 'height', );
+
+	public static function allowedParameters() {
+		return array(
+			'height' => array( 'type' => 'int', 'label' => wfMessage( 'cargo-viewdata-heightparam' )->parse() ),
+			'width' => array( 'type' => 'int', 'label' => wfMessage( 'cargo-viewdata-widthparam' )->parse() )
+		);
 	}
 
 	/**
@@ -28,7 +32,7 @@ class CargoTimelineFormat extends CargoDeferredFormat {
 		  }
 		  } */
 
-		if ( array_key_exists( 'height', $displayParams ) ) {
+		if ( array_key_exists( 'height', $displayParams ) && $displayParams['height'] != '' ) {
 			$height = $displayParams['height'];
 			// Add on "px", if no unit is defined.
 			if ( is_numeric( $height ) ) {
@@ -37,7 +41,7 @@ class CargoTimelineFormat extends CargoDeferredFormat {
 		} else {
 			$height = "350px";
 		}
-		if ( array_key_exists( 'width', $displayParams ) ) {
+		if ( array_key_exists( 'width', $displayParams ) && $displayParams['width'] != '' ) {
 			$width = $displayParams['width'];
 			// Add on "px", if no unit is defined.
 			if ( is_numeric( $width ) ) {

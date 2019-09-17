@@ -30,7 +30,7 @@
 		"CargoTables": "CargoTables",
 		"DeleteCargoTable": "CargoDeleteCargoTable",
 		"SwitchCargoTable": "CargoSwitchCargoTable",
-		"ViewData": "CargoViewData",
+		"CargoQuery": "CargoQueryInterface",
 		"CargoExport": "CargoExport",
 		"PageValues": "CargoPageValues",
 		"Drilldown": "CargoDrilldown"
@@ -42,7 +42,9 @@
 		"cargoquery": "CargoQueryAPI",
 		"cargorecreatetables": "CargoRecreateTablesAPI",
 		"cargorecreatedata": "CargoRecreateDataAPI",
-		"cargoautocomplete": "CargoAutocompleteAPI"
+		"cargoautocomplete": "CargoAutocompleteAPI",
+		"cargoqueryautocomplete": "CargoQueryAutocompleteAPI",
+		"cargoformatparams": "CargoFormatParamsAPI"
 	},
 	"LogTypes": [
 		"cargo"
@@ -61,7 +63,8 @@
 	},
 	"MessagesDirs": {
 		"Cargo": [
-			"i18n"
+			"i18n",
+			"i18n/api"
 		]
 	},
 	"ExtensionMessagesFiles": {
@@ -91,8 +94,8 @@
 		"CargoTables": "specials/CargoTables.php",
 		"CargoDeleteCargoTable": "specials/CargoDeleteTable.php",
 		"CargoSwitchCargoTable": "specials/CargoSwitchTable.php",
-		"CargoViewData": "specials/CargoViewData.php",
-		"ViewDataPage": "specials/CargoViewData.php",
+		"CargoQueryInterface": "specials/CargoQueryInterface.php",
+		"CargoQueryPage": "specials/CargoQueryInterface.php",
 		"CargoExport": "specials/CargoExport.php",
 		"CargoPageValuesAction": "includes/CargoPageValuesAction.php",
 		"CargoPageValues": "specials/CargoPageValues.php",
@@ -100,6 +103,8 @@
 		"CargoRecreateTablesAPI": "api/CargoRecreateTablesAPI.php",
 		"CargoRecreateDataAPI": "api/CargoRecreateDataAPI.php",
 		"CargoAutocompleteAPI": "api/CargoAutocompleteAPI.php",
+		"CargoQueryAutocompleteAPI": "api/CargoQueryAutocompleteAPI.php",
+		"CargoFormatParamsAPI": "api/CargoFormatParamsAPI.php",
 		"CargoLuaLibrary": "CargoLua.library.php",
 		"CargoDisplayFormat": "formats/CargoDisplayFormat.php",
 		"CargoDeferredFormat": "formats/CargoDeferredFormat.php",
@@ -265,6 +270,23 @@
 				"libs/ext.cargo.datatables.js"
 			]
 		},
+		"ext.cargo.cargoquery": {
+			"styles": [
+				"libs/balloon.css"
+			],
+			"scripts": [
+				"libs/ext.cargo.query.js"
+			],
+			"messages": [
+				"cargo-viewdata-tablesrequired",
+				"cargo-viewdata-joinonrequired"
+			],
+			"dependencies": [
+				"jquery.ui.autocomplete",
+				"mediawiki.util",
+				"mediawiki.htmlform.ooui"
+			]
+		},
 		"ext.cargo.nvd3": {
 			"scripts": [
 				"libs/d3.js",
@@ -376,7 +398,9 @@
 		"CargoMaxVisibleHierarchyDrilldownValues": 30,
 		"CargoPageDataColumns": [],
 		"CargoFileDataColumns": [],
-		"CargoHideNamespaceName": [ 6 ],
+		"CargoHideNamespaceName": [
+			6
+		],
 		"CargoAllowedSQLFunctions": [
 			"AVG",
 			"CEIL",

@@ -4,7 +4,8 @@
 			"Chrumps",
 			"Devwebtel",
 			"Railfail536",
-			"CiaPan"
+			"CiaPan",
+			"Rail"
 		]
 	},
 	"cargo-logname": "Dziennik Cargo",
@@ -17,6 +18,11 @@
 	"cargo-viewdata-where": "Gdzie:",
 	"cargo-viewdata-limit": "Limit:",
 	"cargo-viewdata-format": "Format:",
+	"cargo-viewdata-heightparam": "Wysokość:",
+	"cargo-viewdata-widthparam": "Szerokość:",
+	"cargo-viewdata-columnsparam": "Liczba kolumn:",
+	"cargo-viewdata-delimiterparam": "Separator:",
+	"cargo-viewdata-modifyquery": "Modyfikuj zapytanie",
 	"cargo-cargotables-totalrowsshort": "$1 {{PLURAL:$1|wiersz|wiersze|wierszy}}",
 	"cargo-drilldown-allpages": "Wszystkie strony",
 	"cargo-drilldown-allfiles": "Wszystkie pliki",

@@ -80,9 +80,11 @@ class CargoDeclare {
 			return "Error: $type name \"$name\" contains whitespaces. Whitepaces of any kind are not allowed; consider using underscores (\"_\") instead.";
 		} elseif ( strpos( $name, '_' ) === 0 ) {
 			return "Error: $type name \"$name\" begins with an underscore; this is not allowed.";
+		} elseif ( substr( $name, -1 ) === '_' ) {
+			return "Error: $type name \"$name\" ends with an underscore; this is not allowed.";
 		} elseif ( strpos( $name, '__' ) !== false ) {
 			return "Error: $type name \"$name\" contains more than one underscore in a row; this is not allowed.";
-		} elseif ( preg_match( '/[\.,<>(){}\[\]]/', $name ) ) {
+		} elseif ( preg_match( '/[\.,\-<>(){}\[\]]/', $name ) ) {
 			return "Error: $type name \"$name\" cannot contain any of the following characters: .,<>(){}[]";
 		} elseif ( in_array( strtolower( $name ), self::$sqlReservedWords ) ) {
 			return "Error: \"$name\" cannot be used as a Cargo $type name, because it is an SQL keyword.";
@@ -96,11 +98,11 @@ class CargoDeclare {
 	 * Handles the #cargo_declare parser function.
 	 *
 	 * @todo Internationalize error messages
-	 * @param Parser &$parser
+	 * @param Parser $parser
 	 * @return string
 	 */
-	public static function run( &$parser ) {
-		if ( $parser->getTitle()->getNamespace() != NS_TEMPLATE ) {
+	public static function run( Parser $parser ) {
+		if ( !$parser->getTitle() || $parser->getTitle()->getNamespace() != NS_TEMPLATE ) {
 			return CargoUtils::formatError( "Error: #cargo_declare must be called from a template page." );
 		}
 
