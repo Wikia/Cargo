@@ -1737,8 +1737,7 @@ END;
 					$key_string =
 						str_replace( ' ', '_', $af->filter->tableAlias . '.' . $af->filter->name );
 				}
-				$value_string = str_replace( ' ', '_', $af->values[0]->text );
-				$params[$key_string] = $value_string;
+				$params[$key_string] = $af->values[0]->text;
 			} else {
 				// @HACK - QueryPage's pagination-URL code,
 				// which uses wfArrayToCGI(), doesn't support
@@ -1752,8 +1751,7 @@ END;
 						$key_string = str_replace( ' ', '_',
 							$af->filter->tableAlias . '.' . $af->filter->name . "[$i]" );
 					}
-					$value_string = str_replace( ' ', '_', $value->text );
-					$params[$key_string] = $value_string;
+					$params[$key_string] = $value->text;
 				}
 			}
 		}
