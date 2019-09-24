@@ -10,8 +10,11 @@
 
 class CargoDynamicTableFormat extends CargoDisplayFormat {
 
-	function allowedParameters() {
-		return array( 'rows per page', 'hidden fields' );
+	public static function allowedParameters() {
+		return array(
+			'rows per page' => array( 'type' => 'int' ),
+			'hidden fields' => array( 'type' => 'string' )
+		);
 	}
 
 	/**
@@ -69,7 +72,7 @@ class CargoDynamicTableFormat extends CargoDisplayFormat {
 		// class won't do it that way.
 		$dataOrderString = "data-order='" . json_encode( $dataTableOrderByParams ) . "'";
 
-		if ( array_key_exists( 'rows per page', $displayParams ) ) {
+		if ( array_key_exists( 'rows per page', $displayParams ) && $displayParams['rows per page'] != '' ) {
 			// See $dataOrderString above for why it's done this way.
 			$pageLengthString = 'data-page-length="' . $displayParams['rows per page'] . '"';
 		} else {

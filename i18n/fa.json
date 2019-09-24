@@ -6,7 +6,8 @@
 			"Reza1615",
 			"Ebraminio",
 			"FarsiNevis",
-			"Barsavosh"
+			"Barsavosh",
+			"Nemo bis"
 		]
 	},
 	"cargo-definestable": "این الگو جدول «$1» را تعریف می‌کند.",
@@ -15,7 +16,6 @@
 	"cargo-unknowntable": "خطا: جدول $1 پیدا نشد.",
 	"recreatedata": "بازسازی داده‌ها",
 	"cargo-createdatatable": "ایجاد جدولِ داده‌ای",
-	"viewdata": "مشاهدهٔ داده‌ها",
 	"cargo-viewdata-tables": "جدول(ها):",
 	"cargo-viewdata-fields": "فیلد(ها):",
 	"cargo-viewdata-orderby": "ترتیب بر اساس:",

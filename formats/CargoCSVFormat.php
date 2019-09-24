@@ -6,8 +6,13 @@
 
 class CargoCSVFormat extends CargoDeferredFormat {
 
-	function allowedParameters() {
-		return array( 'delimiter', 'link text', 'filename', 'parse values' );
+	public static function allowedParameters() {
+		return array(
+			'delimiter' => array( 'type' => 'string', 'label' => wfMessage( 'cargo-viewdata-delimiterparam' )->parse() ),
+			'link text' => array( 'type' => 'string' ),
+			'filename' => array( 'type' => 'string' ),
+			'parse values' => array( 'type' => 'boolean' )
+		);
 	}
 
 	/**
@@ -21,16 +26,16 @@ class CargoCSVFormat extends CargoDeferredFormat {
 		$ce = SpecialPage::getTitleFor( 'CargoExport' );
 		$queryParams = $this->sqlQueriesToQueryParams( $sqlQueries );
 		$queryParams['format'] = 'csv';
-		if ( array_key_exists( 'delimiter', $displayParams ) ) {
+		if ( array_key_exists( 'delimiter', $displayParams ) && $displayParams['delimiter'] != '' ) {
 			$queryParams['delimiter'] = $displayParams['delimiter'];
 		}
-		if ( array_key_exists( 'filename', $displayParams ) ) {
+		if ( array_key_exists( 'filename', $displayParams ) && $displayParams['filename'] != '' ) {
 			$queryParams['filename'] = $displayParams['filename'];
 		}
-		if ( array_key_exists( 'parse values', $displayParams ) ) {
+		if ( array_key_exists( 'parse values', $displayParams ) && $displayParams['parse values'] != '' ) {
 			$queryParams['parse values'] = $displayParams['parse values'];
 		}
-		if ( array_key_exists( 'link text', $displayParams ) ) {
+		if ( array_key_exists( 'link text', $displayParams ) && $displayParams['link text'] != '' ) {
 			$linkText = $displayParams['link text'];
 		} else {
 			$linkText = wfMessage( 'cargo-viewcsv' )->text();

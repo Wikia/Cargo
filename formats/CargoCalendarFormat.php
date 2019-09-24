@@ -5,8 +5,15 @@
  */
 
 class CargoCalendarFormat extends CargoDeferredFormat {
-	function allowedParameters() {
-		return array( 'width', 'start date', 'color', 'text color', 'height' );
+
+	public static function allowedParameters() {
+		return array(
+			'height' => array( 'type' => 'int', 'label' => wfMessage( 'cargo-viewdata-heightparam' )->parse() ),
+			'width' => array( 'type' => 'int', 'label' => wfMessage( 'cargo-viewdata-widthparam' )->parse() ),
+			'start date' => array( 'type' => 'date' ),
+			'color' => array( 'type' => 'string' ),
+			'text color' => array( 'type' => 'string' )
+		);
 	}
 
 	/**
@@ -51,7 +58,7 @@ class CargoCalendarFormat extends CargoDeferredFormat {
 			}
 		}
 
-		if ( array_key_exists( 'width', $displayParams ) ) {
+		if ( array_key_exists( 'width', $displayParams ) && $displayParams['width'] != '' ) {
 			$width = $displayParams['width'];
 			// Add on "px", if no unit is defined.
 			if ( is_numeric( $width ) ) {
@@ -61,7 +68,7 @@ class CargoCalendarFormat extends CargoDeferredFormat {
 			$width = "100%";
 		}
 
-		if ( array_key_exists( 'height', $displayParams ) ) {
+		if ( array_key_exists( 'height', $displayParams ) && $displayParams['height'] != '' ) {
 			$height = $displayParams['height'];
 			// The height should be either a number or "auto".
 			if ( !is_numeric( $height ) ) {
@@ -79,7 +86,7 @@ class CargoCalendarFormat extends CargoDeferredFormat {
 			'style' => "width: $width",
 			'height' => $height,
 		);
-		if ( array_key_exists( 'view', $displayParams ) ) {
+		if ( array_key_exists( 'view', $displayParams ) && $displayParams['view'] != '' ) {
 			$view = $displayParams['view'];
 			// Enable simpler view names.
 			if ( $view == 'day' ) {
@@ -91,7 +98,7 @@ class CargoCalendarFormat extends CargoDeferredFormat {
 		} else {
 			$attrs['startview'] = 'month';
 		}
-		if ( array_key_exists( 'start date', $displayParams ) ) {
+		if ( array_key_exists( 'start date', $displayParams ) && $displayParams['start date'] != '' ) {
 			$attrs['startdate'] = $displayParams['start date'];
 		}
 		$text = Html::rawElement( 'div', $attrs, '' );

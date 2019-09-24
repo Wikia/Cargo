@@ -25,7 +25,7 @@ if ( version_compare( $GLOBALS['wgVersion'], '1.27', '>=' ) ) {
 
 // All the rest is for backward compatibility, for MW 1.26 and lower.
 
-define( 'CARGO_VERSION', '2.2' );
+define( 'CARGO_VERSION', '2.1.2' );
 
 $wgExtensionCredits['parserhook'][] = array(
 	'path' => __FILE__,
@@ -42,6 +42,7 @@ $dir = __DIR__ . '/';
 
 // Script path.
 $cgScriptPath = $wgScriptPath . '/extensions/Cargo';
+
 $wgJobClasses['cargoPopulateTable'] = 'CargoPopulateTableJob';
 
 $wgHooks['ParserFirstCallInit'][] = 'CargoHooks::registerParserFunctions';
@@ -73,6 +74,8 @@ $wgAPIModules['cargoquery'] = 'CargoQueryAPI';
 $wgAPIModules['cargorecreatetables'] = 'CargoRecreateTablesAPI';
 $wgAPIModules['cargorecreatedata'] = 'CargoRecreateDataAPI';
 $wgAPIModules['cargoautocomplete'] = 'CargoAutocompleteAPI';
+$wgAPIModules['cargoqueryautocomplete'] = 'CargoQueryAutocompleteAPI';
+$wgAPIModules['cargoformatparams'] = 'CargoFormatParamsAPI';
 
 // Logging
 $wgLogTypes['cargo'] = 'cargo';
@@ -109,9 +112,9 @@ $wgSpecialPages['DeleteCargoTable'] = 'CargoDeleteCargoTable';
 $wgAutoloadClasses['CargoDeleteCargoTable'] = $dir . '/specials/CargoDeleteTable.php';
 $wgSpecialPages['SwitchCargoTable'] = 'CargoSwitchCargoTable';
 $wgAutoloadClasses['CargoSwitchCargoTable'] = $dir . '/specials/CargoSwitchTable.php';
-$wgSpecialPages['ViewData'] = 'CargoViewData';
-$wgAutoloadClasses['CargoViewData'] = $dir . '/specials/CargoViewData.php';
-$wgAutoloadClasses['ViewDataPage'] = $dir . '/specials/CargoViewData.php';
+$wgSpecialPages['CargoQuery'] = 'CargoQueryInterface';
+$wgAutoloadClasses['CargoQueryInterface'] = $dir . '/specials/CargoQueryInterface.php';
+$wgAutoloadClasses['CargoQueryPage'] = $dir . '/specials/CargoQueryInterface.php';
 $wgSpecialPages['CargoExport'] = 'CargoExport';
 $wgAutoloadClasses['CargoExport'] = $dir . '/specials/CargoExport.php';
 $wgAutoloadClasses['CargoPageValuesAction'] = $dir . '/includes/CargoPageValuesAction.php';
@@ -121,6 +124,8 @@ $wgAutoloadClasses['CargoQueryAPI'] = $dir . '/api/CargoQueryAPI.php';
 $wgAutoloadClasses['CargoRecreateTablesAPI'] = $dir . '/api/CargoRecreateTablesAPI.php';
 $wgAutoloadClasses['CargoRecreateDataAPI'] = $dir . '/api/CargoRecreateDataAPI.php';
 $wgAutoloadClasses['CargoAutocompleteAPI'] = $dir . '/api/CargoAutocompleteAPI.php';
+$wgAutoloadClasses['CargoQueryAutocompleteAPI'] = $dir . '/api/CargoQueryAutocompleteAPI.php';
+$wgAutoloadClasses['CargoFormatParamsAPI'] = $dir . '/api/CargoFormatParamsAPI.php';
 $wgAutoloadClasses['CargoLuaLibrary'] = $dir . '/CargoLua.library.php';
 
 // Display formats
@@ -340,6 +345,25 @@ $wgResourceModules += array(
 		),
 		'scripts' => array(
 			'libs/slick/slick.js'
+		),
+		'localBasePath' => __DIR__,
+		'remoteExtPath' => 'Cargo'
+	),
+	'ext.cargo.cargoquery' => array(
+		'styles' => array(
+			'libs/balloon.css'
+		),
+		'scripts' => array(
+			'libs/ext.cargo.query.js'
+		),
+		'messages' => array(
+			'cargo-viewdata-tablesrequired',
+			'cargo-viewdata-joinonrequired'
+		),
+		'dependencies' => array(
+			'jquery.ui.autocomplete',
+			'mediawiki.util',
+			'mediawiki.htmlform.ooui'
 		),
 		'localBasePath' => __DIR__,
 		'remoteExtPath' => 'Cargo'
