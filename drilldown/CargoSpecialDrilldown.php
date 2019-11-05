@@ -1,4 +1,7 @@
 <?php
+
+use MediaWiki\MediaWikiServices;
+
 /**
  * Displays an interface to let the user drill down through all Cargo data.
  *
@@ -29,8 +32,8 @@ class CargoDrilldown extends IncludableSpecialPage {
 		$title = $this->getPageTitle();
 
 		if ( $this->including() ) {
-			global $wgParser;
-			$wgParser->disableCache();
+			$parser = MediaWikiServices::getInstance()->getParser();
+			$parser->getOutput()->updateCacheExpiry( 0 );
 		}
 		$this->setHeaders();
 		$out->addModules( 'ext.cargo.drilldown' );
