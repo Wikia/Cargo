@@ -72,26 +72,6 @@ class CargoHooks {
 		return true;
 	}
 
-	public static function registerModules( ResourceLoader &$resourceLoader ) {
-		// A "shim" to allow 'oojs-ui-core' to be used as a module
-		// even with MediaWiki versions (< 1.29) where it was not yet
-		// defined.
-		$cargoDir = __DIR__ . '/..';
-		$moduleNames = $resourceLoader->getModuleNames();
-		if ( in_array( 'oojs-ui-core', $moduleNames ) ) {
-			return true;
-		}
-
-		$resourceLoader->register( array(
-			'oojs-ui-core' => array(
-				'localBasePath' => $cargoDir,
-				'remoteExtPath' => 'Cargo',
-				'dependencies' => 'oojs-ui'
-			)
-		) );
-		return true;
-	}
-
 	/**
 	 * Add the "purge cache" tab to actions
 	 *
@@ -292,18 +272,15 @@ class CargoHooks {
 
 	/**
 	 *
-	 * @param Title $title Unused
-	 * @param Title $newtitle
-	 * @param User $user Unused
+	 * @param Title &$title Unused
+	 * @param Title &$newtitle
+	 * @param User &$user Unused
 	 * @param int $oldid
 	 * @param int $newid Unused
 	 * @param string $reason Unused
 	 * @return bool
-	 *
-	 * It's $user here and not &$user due to a bug in MW 1.27 - this declaration works
-	 * across all versions, thankfully.
 	 */
-	public static function onTitleMoveComplete( Title $title, Title $newtitle, User $user, $oldid,
+	public static function onTitleMoveComplete( Title &$title, Title &$newtitle, User &$user, $oldid,
 		$newid, $reason ) {
 		// For each main data table to which this page belongs, change
 		// the page name-related fields.
