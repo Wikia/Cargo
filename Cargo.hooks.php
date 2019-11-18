@@ -240,6 +240,7 @@ class CargoHooks {
 		// this page to be saved by Cargo, since the page will be
 		// parsed right after this.
 		CargoStore::$settings['origin'] = 'Approved Revs revision approved';
+		$cdb = CargoUtils::getDB();
 		$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
 		CargoPageData::storeValuesForPage( $title, $useReplacementTable );
 		$useReplacementTable = $cdb->tableExists( '_fileData__NEXT' );
@@ -260,6 +261,7 @@ class CargoHooks {
 			// No point storing the Cargo data if it's blank.
 			CargoStore::$settings['origin'] = 'Approved Revs revision unapproved';
 		}
+		$cdb = CargoUtils::getDB();
 		$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
 		CargoPageData::storeValuesForPage( $title, $useReplacementTable, $egApprovedRevsBlankIfUnapproved );
 		$useReplacementTable = $cdb->tableExists( '_fileData__NEXT' );
