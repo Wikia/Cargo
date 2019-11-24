@@ -298,7 +298,6 @@ class CargoHooks {
 		$cdb->startAtomic( __METHOD__ );
 		// We use $oldid, because that's the page ID - $newid is the
 		// ID of the redirect page.
-		// @TODO - do anything with the redirect?
 		$res = $dbw->select( 'cargo_pages', 'table_name', array( 'page_id' => $oldid ) );
 		while ( $row = $dbw->fetchRow( $res ) ) {
 			$curMainTable = $row['table_name'];
@@ -329,6 +328,12 @@ class CargoHooks {
 
 		// End transaction and apply DB changes.
 		$cdb->endAtomic( __METHOD__ );
+
+		// Save data for the original page (now a redirect).
+		if ( $newid != 0 ) {
+			$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
+			CargoPageData::storeValuesForPage( $title, $useReplacementTable );
+		}
 
 		return true;
 	}
