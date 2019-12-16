@@ -60,7 +60,7 @@ class CargoAttach {
 				$declaringTemplateTitle->getText() . ']]';
 			$text = wfMessage( 'cargo-addsrows', $tableName, $declaringTemplateLink )->text();
 		} else {
-			$text = wfMessage( 'cargo-addsrows-unknowntemplate', $tableName )->text();
+			$text = wfMessage( 'cargo-addsrows-missingdeclare', $tableName )->text();
 		}
 		$ct = SpecialPage::getTitleFor( 'CargoTables' );
 		$pageName = $ct->getPrefixedText() . "/$tableName";
