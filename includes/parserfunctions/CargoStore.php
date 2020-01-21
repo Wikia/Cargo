@@ -86,7 +86,7 @@ class CargoStore {
 			// This table probably has not been created yet -
 			// just exit silently.
 			wfDebugLog( 'cargo', "CargoStore::run() - skipping; Cargo table ($tableName) does not exist.\n" );
-			$cdb->cancelAtomic( __METHOD__ );
+			$cdb->endAtomic( __METHOD__ );
 			return;
 		}
 		$tableSchema = CargoTableSchema::newFromDBString( $row['table_schema'] );
