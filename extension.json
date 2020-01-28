@@ -1,14 +1,14 @@
 {
 	"name": "Cargo",
 	"namemsg": "cargo-extensionname",
-	"version": "2.2",
+	"version": "2.4",
 	"author": "Yaron Koren",
 	"url": "https://www.mediawiki.org/wiki/Extension:Cargo",
 	"descriptionmsg": "cargo-desc",
 	"license-name": "GPL-2.0-or-later",
 	"type": "parserhook",
 	"requires": {
-		"MediaWiki": ">= 1.25.3"
+		"MediaWiki": ">= 1.29"
 	},
 	"callback": "CargoHooks::registerExtension",
 	"AvailableRights": [
@@ -177,20 +177,6 @@
 				"cargo-cargotables-viewreplacementlink"
 			]
 		},
-		"ext.cargo.drilldown": {
-			"styles": [
-				"drilldown/resources/CargoDrilldown.css",
-				"drilldown/resources/CargoJQueryUIOverrides.css"
-			],
-			"scripts": [
-				"drilldown/resources/CargoDrilldown.js"
-			],
-			"dependencies": [
-				"jquery.ui.autocomplete",
-				"jquery.ui.button",
-				"oojs-ui-core"
-			]
-		},
 		"ext.cargo.maps": {
 			"scripts": [
 				"libs/ext.cargo.maps.js",
@@ -270,23 +256,6 @@
 				"libs/ext.cargo.datatables.js"
 			]
 		},
-		"ext.cargo.cargoquery": {
-			"styles": [
-				"libs/balloon.css"
-			],
-			"scripts": [
-				"libs/ext.cargo.query.js"
-			],
-			"messages": [
-				"cargo-viewdata-tablesrequired",
-				"cargo-viewdata-joinonrequired"
-			],
-			"dependencies": [
-				"jquery.ui.autocomplete",
-				"mediawiki.util",
-				"mediawiki.htmlform.ooui"
-			]
-		},
 		"ext.cargo.nvd3": {
 			"scripts": [
 				"libs/d3.js",
@@ -340,6 +309,12 @@
 		"ArticleDeleteComplete": [
 			"CargoHooks::onArticleDeleteComplete"
 		],
+		"CategoryAfterPageAdded": [
+			"CargoHooks::addCategoryToPageData"
+		],
+		"CategoryAfterPageRemoved": [
+			"CargoHooks::removeCategoryFromPageData"
+		],
 		"LoadExtensionSchemaUpdates": [
 			"CargoHooks::describeDBSchema",
 			"CargoHooks::cargoSchemaUpdates"
@@ -362,6 +337,9 @@
 		],
 		"PageSchemasRegisterHandlers": [
 			"CargoPageSchemas::registerClass"
+		],
+		"ResourceLoaderRegisterModules": [
+			"CargoHooks::registerModules"
 		],
 		"ResourceLoaderGetConfigVars": [
 			"CargoHooks::onResourceLoaderGetConfigVars"

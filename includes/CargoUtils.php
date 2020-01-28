@@ -8,6 +8,7 @@
 
 use MediaWiki\Linker\LinkRenderer;
 use MediaWiki\Linker\LinkTarget;
+use MediaWiki\MediaWikiServices;
 
 class CargoUtils {
 
@@ -77,12 +78,7 @@ class CargoUtils {
 			$params['dbFilePath'] = $dbr->getDbFilePath();
 		}
 
-		if ( class_exists( 'Database' ) ) {
-			// MW 1.27+
-			self::$CargoDB = Database::factory( $wgCargoDBtype, $params );
-		} else {
-			self::$CargoDB = DatabaseBase::factory( $wgCargoDBtype, $params );
-		}
+		self::$CargoDB = Database::factory( $wgCargoDBtype, $params );
 		return self::$CargoDB;
 	}
 
@@ -454,7 +450,6 @@ class CargoUtils {
 	 * we're in a special or regular page.
 	 *
 	 * @global WebRequest $wgRequest
-	 * @global Parser $wgParser
 	 * @param string $value
 	 * @param Parser $parser
 	 * @return string
@@ -479,8 +474,7 @@ class CargoUtils {
 		// depends on whether we're in a special page or not.
 		global $wgRequest;
 		if ( is_null( $parser ) ) {
-			global $wgParser;
-			$parser = $wgParser;
+			$parser = MediaWikiServices::getInstance()->getParser();
 		}
 		$title = $parser->getTitle();
 		if ( is_null( $title ) ) {
@@ -516,21 +510,23 @@ class CargoUtils {
 	}
 
 	public static function parsePageForStorage( $title, $pageContents ) {
-		// @TODO - is there a "cleaner" way to get a page to be parsed?
-		global $wgParser;
-
 		// Special handling for the Approved Revs extension.
-		$pageText = null;
-		$approvedText = null;
+		$approvedContent = null;
 		if ( class_exists( 'ApprovedRevs' ) ) {
-			$approvedText = ApprovedRevs::getApprovedContent( $title );
+			$approvedContent = ApprovedRevs::getApprovedContent( $title );
 		}
-		if ( $approvedText != null ) {
-			$pageText = $approvedText;
+		if ( $approvedContent != null ) {
+			if ( method_exists( $approvedContent, 'getText' ) ) {
+				// Approved Revs 1.0+
+				$pageText = $approvedContent->getText();
+			} else {
+				$pageText = $approvedContent;
+			}
 		} else {
 			$pageText = $pageContents;
 		}
-		$wgParser->parse( $pageText, $title, new ParserOptions() );
+		$parser = MediaWikiServices::getInstance()->getParser();
+		$parser->parse( $pageText, $title, new ParserOptions() );
 	}
 
 	/**
@@ -734,7 +730,6 @@ class CargoUtils {
 	public static function createCargoTableOrTables( $cdb, $dbw, $tableName, $tableSchema, $tableSchemaString, $templatePageID ) {
 		$cdb->startAtomic( __METHOD__ );
 		$cdbTableName = $cdb->addIdentifierQuotes( $cdb->tableName( $tableName, 'plain' ) );
-		$dbType = $cdb->getType();
 		$fieldsInMainTable = array(
 			'_ID' => 'Integer',
 			'_pageName' => 'String',
@@ -743,7 +738,6 @@ class CargoUtils {
 			'_pageID' => 'Integer',
 		);
 
-		$containsSearchTextType = false;
 		$containsFileType = false;
 		foreach ( $tableSchema->mFieldDescriptions as $fieldName => $fieldDescription ) {
 			$size = $fieldDescription->mSize;
@@ -769,8 +763,6 @@ class CargoUtils {
 					   $fieldType == 'Start date' || $fieldType == 'Start datetime' ||
 					   $fieldType == 'End date' || $fieldType == 'End datetime' ) {
 				$fieldsInMainTable[$fieldName . '__precision'] = 'Integer';
-			} elseif ( $fieldType == 'Searchtext' ) {
-				$containsSearchTextType = true;
 			} elseif ( $fieldType == 'File' ) {
 				$containsFileType = true;
 			}
@@ -858,7 +850,6 @@ class CargoUtils {
 		$dbType = $cdb->getType();
 		$sqlTableName = $cdb->tableName( $tableName );
 		$createSQL = "CREATE TABLE $sqlTableName ( ";
-		$containsSearchTextType = false;
 		$firstField = true;
 		foreach ( $fieldsInTable as $fieldName => $fieldDescOrType ) {
 			$fieldOptionsText = '';
@@ -890,16 +881,10 @@ class CargoUtils {
 			$sqlFieldName = $cdb->addIdentifierQuotes( $fieldName );
 			$createSQL .= "$sqlFieldName $sqlType $fieldOptionsText";
 			if ( $fieldType == 'Searchtext' ) {
-				$containsSearchTextType = true;
 				$createSQL .= ", FULLTEXT KEY $fieldName ( $sqlFieldName )";
 			}
 		}
 		$createSQL .= ' )';
-		// For MySQL 5.6 and earlier, only MyISAM supports 'FULLTEXT'
-		// indexes; InnoDB does not.
-		if ( $containsSearchTextType && $dbType == 'mysql' ) {
-			$createSQL .= ' ENGINE=MyISAM';
-		}
 		// Allow for setting a format like COMPRESSED, DYNAMIC etc.
 		if ( $wgCargoDBRowFormat != null ) {
 			$createSQL .= " ROW_FORMAT=$wgCargoDBRowFormat";
@@ -1171,7 +1156,7 @@ class CargoUtils {
 		} elseif ( $linkRenderer !== null ) {
 			// MW 1.28+
 			$html = ( $msg == null ) ? null : new HtmlArmor( $msg );
-			return $linkRenderer->makeKnownLink( $title, $html, $attrs, $params );
+			return $linkRenderer->makeLink( $title, $html, $attrs, $params );
 		} else {
 			return Linker::linkKnown( $title, $msg, $attrs, $params );
 		}
@@ -1224,23 +1209,4 @@ class CargoUtils {
 		}
 	}
 
-	/**
-	 * Calls one of the API methods to display an error message and die.
-	 *
-	 * @param Object $object
-	 * @param string|array|Message $msg
-	 * @param string|null $errcode
-	 */
-	public static function dieWithError( $object, $msg, $errcode = null ) {
-		if ( method_exists( $object, "dieWithError" ) ) {
-			// Since MW 1.29
-			$object->dieWithError( $msg, $errcode );
-		} elseif ( $errcode !== null ) {
-			// Deprecated since MW 1.29.
-			$object->dieUsage( $msg, $errcode );
-		} else {
-			// Deprecated since MW 1.29.
-			$object->dieUsageMsg( $msg );
-		}
-	}
 }

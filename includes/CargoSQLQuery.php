@@ -26,6 +26,7 @@ class CargoSQLQuery {
 	public $mFieldTables;
 	public $mOrigGroupByStr;
 	public $mGroupByStr;
+	public $mOrigHavingStr;
 	public $mHavingStr;
 	public $mOrderBy;
 	public $mQueryLimit;
@@ -68,7 +69,8 @@ class CargoSQLQuery {
 		$sqlQuery->mTableSchemas = CargoUtils::getTableSchemas( $sqlQuery->mAliasedTableNames );
 		$sqlQuery->setOrderBy( $orderByStr );
 		$sqlQuery->setGroupBy( $groupByStr );
-		$sqlQuery->mHavingStr = $havingStr;
+		$sqlQuery->mOrigHavingStr = $havingStr;
+		$sqlQuery->mHavingStr = $sqlQuery->mOrigHavingStr;
 		$sqlQuery->setDescriptionsAndTableNamesForFields();
 		$sqlQuery->handleHierarchyFields();
 		$sqlQuery->handleVirtualFields();
@@ -400,10 +402,17 @@ class CargoSQLQuery {
 			if ( array_key_exists( 'extraCond', $cargoJoinCond ) ) {
 				$joinCondConds[] = $cargoJoinCond['extraCond'];
 			}
-			$this->mJoinConds[$table2] = array(
-				$cargoJoinCond['joinType'],
-				$joinCondConds
-			);
+			if ( !array_key_exists( $table2, $this->mJoinConds ) ) {
+				$this->mJoinConds[$table2] = array(
+					$cargoJoinCond['joinType'],
+					$joinCondConds
+				);
+			} else {
+				$this->mJoinConds[$table2][1] = array_merge(
+					$this->mJoinConds[$table2][1],
+					$joinCondConds
+				);
+			};
 		}
 	}
 
@@ -1510,14 +1519,6 @@ class CargoSQLQuery {
 		// call the DB query.
 		$realAliasedFieldNames = array();
 		foreach ( $this->mAliasedFieldNames as $alias => $fieldName ) {
-			// Starting in MW 1.27 (specifically, with
-			// https://gerrit.wikimedia.org/r/#/c/286489/),
-			// query aliases get escaped with quotes automatically.
-			// Double-escaping leads to a query error.
-			if ( version_compare( $GLOBALS['wgVersion'], '1.27', '<' ) ) {
-				$alias = $this->mCargoDB->addIdentifierQuotes( $alias );
-			}
-
 			// If it's either a field, or a table + field,
 			// add quotes around the name(s).
 			if ( strpos( $fieldName, '(' ) === false ) {

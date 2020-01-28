@@ -11,7 +11,7 @@ class CargoHooks {
 	public static function registerExtension() {
 		global $cgScriptPath, $wgScriptPath, $wgCargoFieldTypes, $wgGroupPermissions;
 
-		define( 'CARGO_VERSION', '2.2' );
+		define( 'CARGO_VERSION', '2.4' );
 
 		// Script path.
 		$cgScriptPath = $wgScriptPath . '/extensions/Cargo';
@@ -31,6 +31,71 @@ class CargoHooks {
 		$parser->setFunctionHook( 'cargo_compound_query', array( 'CargoCompoundQuery', 'run' ) );
 		$parser->setFunctionHook( 'recurring_event', array( 'CargoRecurringEvent', 'run' ) );
 		$parser->setFunctionHook( 'cargo_display_map', array( 'CargoDisplayMap', 'run' ) );
+		return true;
+	}
+
+	/**
+	 * ResourceLoaderRegisterModules hook handler
+	 *
+	 * @see https://www.mediawiki.org/wiki/Manual:Hooks/ResourceLoaderRegisterModules
+	 *
+	 * @param ResourceLoader &$resourceLoader The ResourceLoader object
+	 * @return bool Always true
+	 */
+	public static function registerModules( ResourceLoader &$resourceLoader ) {
+		global $wgVersion;
+
+		$cargoDir = __DIR__;
+
+		// Between MW 1.34 and 1.35, all the jquery.ui.* modules were
+		// merged into one big module, "jquery.ui".
+		if ( version_compare( $wgVersion, '1.35', '>=' ) ) {
+			$drilldownDependencies = array(
+				"jquery.ui",
+				"oojs-ui-core"
+			);
+			$cargoQueryDependencies = array(
+				"jquery.ui",
+				"mediawiki.util",
+				"mediawiki.htmlform.ooui"
+			);
+		} else {
+			$drilldownDependencies = array(
+				"jquery.ui.autocomplete",
+				"jquery.ui.button",
+				"oojs-ui-core"
+			);
+			$cargoQueryDependencies = array(
+				"jquery.ui.autocomplete",
+				"mediawiki.util",
+				"mediawiki.htmlform.ooui"
+			);
+		}
+
+		$resourceLoader->register( array(
+			"ext.cargo.drilldown" => array(
+				'localBasePath' => $cargoDir,
+				'remoteExtPath' => 'Cargo',
+				'styles' => array(
+					"drilldown/resources/CargoDrilldown.css",
+					"drilldown/resources/CargoJQueryUIOverrides.css"
+				),
+				'scripts' => "drilldown/resources/CargoDrilldown.js",
+				'dependencies' => $drilldownDependencies
+			),
+			"ext.cargo.cargoquery" => array(
+				'localBasePath' => $cargoDir,
+				'remoteExtPath' => 'Cargo',
+				'styles' => "libs/balloon.css",
+				'scripts' => "libs/ext.cargo.query.js",
+				'messages' => array(
+					"cargo-viewdata-tablesrequired",
+					"cargo-viewdata-joinonrequired"
+				),
+				'dependencies' => $cargoQueryDependencies
+			)
+		) );
+
 		return true;
 	}
 
@@ -69,26 +134,6 @@ class CargoHooks {
 			$vars['wgCargoWeekDaysShort'][] = $out->getLanguage()->getWeekdayAbbreviation( $i );
 		}
 
-		return true;
-	}
-
-	public static function registerModules( ResourceLoader &$resourceLoader ) {
-		// A "shim" to allow 'oojs-ui-core' to be used as a module
-		// even with MediaWiki versions (< 1.29) where it was not yet
-		// defined.
-		$cargoDir = __DIR__ . '/..';
-		$moduleNames = $resourceLoader->getModuleNames();
-		if ( in_array( 'oojs-ui-core', $moduleNames ) ) {
-			return true;
-		}
-
-		$resourceLoader->register( array(
-			'oojs-ui-core' => array(
-				'localBasePath' => $cargoDir,
-				'remoteExtPath' => 'Cargo',
-				'dependencies' => 'oojs-ui'
-			)
-		) );
 		return true;
 	}
 
@@ -212,8 +257,6 @@ class CargoHooks {
 	 * We use that hook, instead of 'PageContentSave', because we need
 	 * the page ID to have been set already for newly-created pages.
 	 *
-	 * @global Parser $wgParser
-	 *
 	 * @param WikiPage $wikiPage
 	 * @param User $user Unused
 	 * @param Content $content
@@ -244,7 +287,7 @@ class CargoHooks {
 		// Also, save the "page data" and (if appropriate) "file data".
 		$cdb = CargoUtils::getDB();
 		$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
-		CargoPageData::storeValuesForPage( $wikiPage->getTitle(), $useReplacementTable );
+		CargoPageData::storeValuesForPage( $wikiPage->getTitle(), $useReplacementTable, false );
 		$useReplacementTable = $cdb->tableExists( '_fileData__NEXT' );
 		CargoFileData::storeValuesForFile( $wikiPage->getTitle(), $useReplacementTable );
 
@@ -258,12 +301,19 @@ class CargoHooks {
 		$pageID = $title->getArticleID();
 		self::deletePageFromSystem( $pageID );
 		// In an unexpected surprise, it turns out that simply adding
-		// this setting will be enough to get the correct revision of
-		// this page to be saved by Cargo, since the page will be
-		// parsed right after this.
+		// this setting will (usually) be enough to get the correct
+		// revision of this page to be saved by Cargo, since the page
+		// will (usually) be parsed right after this.
+		// The one exception to that rule is that if it's the latest
+		// revision being approved, the page is sometimes not parsed (?) -
+		// so in that case, we'll parse it ourselves.
 		CargoStore::$settings['origin'] = 'Approved Revs revision approved';
+		if ( $revID == $title->getLatestRevID() ) {
+			CargoUtils::parsePageForStorage( $title, null );
+		}
+		$cdb = CargoUtils::getDB();
 		$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
-		CargoPageData::storeValuesForPage( $title, $useReplacementTable );
+		CargoPageData::storeValuesForPage( $title, $useReplacementTable, true );
 		$useReplacementTable = $cdb->tableExists( '_fileData__NEXT' );
 		CargoFileData::storeValuesForFile( $title, $useReplacementTable );
 
@@ -282,8 +332,9 @@ class CargoHooks {
 			// No point storing the Cargo data if it's blank.
 			CargoStore::$settings['origin'] = 'Approved Revs revision unapproved';
 		}
+		$cdb = CargoUtils::getDB();
 		$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
-		CargoPageData::storeValuesForPage( $title, $useReplacementTable, $egApprovedRevsBlankIfUnapproved );
+		CargoPageData::storeValuesForPage( $title, $useReplacementTable, true, $egApprovedRevsBlankIfUnapproved );
 		$useReplacementTable = $cdb->tableExists( '_fileData__NEXT' );
 		CargoFileData::storeValuesForFile( $title, $useReplacementTable, $egApprovedRevsBlankIfUnapproved );
 
@@ -292,18 +343,15 @@ class CargoHooks {
 
 	/**
 	 *
-	 * @param Title $title Unused
-	 * @param Title $newtitle
-	 * @param User $user Unused
+	 * @param Title &$title Unused
+	 * @param Title &$newtitle
+	 * @param User &$user Unused
 	 * @param int $oldid
 	 * @param int $newid Unused
 	 * @param string $reason Unused
 	 * @return bool
-	 *
-	 * It's $user here and not &$user due to a bug in MW 1.27 - this declaration works
-	 * across all versions, thankfully.
 	 */
-	public static function onTitleMoveComplete( Title $title, Title $newtitle, User $user, $oldid,
+	public static function onTitleMoveComplete( Title &$title, Title &$newtitle, User &$user, $oldid,
 		$newid, $reason ) {
 		// For each main data table to which this page belongs, change
 		// the page name-related fields.
@@ -315,7 +363,6 @@ class CargoHooks {
 		$cdb->startAtomic( __METHOD__ );
 		// We use $oldid, because that's the page ID - $newid is the
 		// ID of the redirect page.
-		// @TODO - do anything with the redirect?
 		$res = $dbw->select( 'cargo_pages', 'table_name', array( 'page_id' => $oldid ) );
 		while ( $row = $dbw->fetchRow( $res ) ) {
 			$curMainTable = $row['table_name'];
@@ -333,6 +380,10 @@ class CargoHooks {
 		$generalTables = array( '_pageData', '_fileData' );
 		foreach ( $generalTables as $generalTable ) {
 			if ( $cdb->tableExists( $generalTable ) ) {
+				// Update in the replacement table, if one exists.
+				if ( $cdb->tableExists( $generalTable . '__NEXT' ) ) {
+					$generalTable = $generalTable . '__NEXT';
+				}
 				$cdb->update( $generalTable,
 					array(
 						$cdb->addIdentifierQuotes( '_pageName' ) => $newPageName,
@@ -347,6 +398,12 @@ class CargoHooks {
 		// End transaction and apply DB changes.
 		$cdb->endAtomic( __METHOD__ );
 
+		// Save data for the original page (now a redirect).
+		if ( $newid != 0 ) {
+			$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
+			CargoPageData::storeValuesForPage( $title, $useReplacementTable );
+		}
+
 		return true;
 	}
 
@@ -356,6 +413,105 @@ class CargoHooks {
 	public static function onArticleDeleteComplete( &$article, User &$user, $reason, $id, $content,
 		$logEntry ) {
 		self::deletePageFromSystem( $id );
+		return true;
+	}
+
+	/**
+	 * Called by the MediaWiki 'CategoryAfterPageAdded' hook.
+	 *
+	 * @param Category $category
+	 * @param WikiPage $wikiPage
+	 */
+	public static function addCategoryToPageData( $category, $wikiPage ) {
+		self::addOrRemoveCategoryData( $category, $wikiPage, true );
+	}
+
+	/**
+	 * Called by the MediaWiki 'CategoryAfterPageRemoved' hook.
+	 *
+	 * @param Category $category
+	 * @param WikiPage $wikiPage
+	 */
+	public static function removeCategoryFromPageData( $category, $wikiPage ) {
+		self::addOrRemoveCategoryData( $category, $wikiPage, false );
+	}
+
+	/**
+	 * We use hooks to modify the _categories field in _pageData, instead of
+	 * saving it on page save as is done with all other fields (in _pageData
+	 * and elsewhere), because the categories information is often not set
+	 * until after the page has already been saved, due to the use of jobs.
+	 * We can use the same function for both adding and removing categories
+	 * because it's almost the same code either way.
+	 * If anything gets messed up in this process, the data can be recreated
+	 * by calling setCargoPageData.php.
+	 */
+	static function addOrRemoveCategoryData( $category, $wikiPage, $isAdd ) {
+		global $wgCargoPageDataColumns;
+		if ( ! in_array( 'categories', $wgCargoPageDataColumns ) ) {
+			return true;
+		}
+
+		$cdb = CargoUtils::getDB();
+
+		// We need to make sure that the "categories" field table
+		// already exists, because we're only modifying it here, not
+		// creating it.
+		if ( $cdb->tableExists( '_pageData__NEXT___categories' ) ) {
+			$pageDataTable = '_pageData__NEXT';
+		} elseif ( $cdb->tableExists( '_pageData___categories' ) ) {
+			$pageDataTable = '_pageData';
+		} else {
+			return true;
+		}
+		$categoriesTable = $pageDataTable . '___categories';
+		$categoryName = $category->getName();
+		$pageID = $wikiPage->getId();
+
+		$cdb = CargoUtils::getDB();
+		$cdb->begin();
+		$res = $cdb->select( $pageDataTable, '_ID', array( '_pageID' => $pageID ) );
+		if ( $cdb->numRows( $res ) == 0 ) {
+			$cdb->commit();
+			return true;
+		}
+		$row = $res->fetchRow();
+		$rowID = $row['_ID'];
+		$categoriesForPage = array();
+		$res2 = $cdb->select( $categoriesTable, '_value',  array( '_rowID' => $rowID ) );
+		while ( $row2 = $res2->fetchRow() ) {
+			$categoriesForPage[] = $row2['_value'];
+		}
+		$categoryAlreadyListed = in_array( $categoryName, $categoriesForPage );
+		// This can be done with a NOT XOR (i.e. XNOR), but let's not make it more confusing.
+		if ( ( $isAdd && $categoryAlreadyListed ) || ( !$isAdd && !$categoryAlreadyListed ) ) {
+			$cdb->commit();
+			return true;
+		}
+
+		// The real operation is here.
+		if ( $isAdd ) {
+			$categoriesForPage[] = $categoryName;
+		} else {
+			foreach ( $categoriesForPage as $i => $cat ) {
+				if ( $cat == $categoryName ) {
+					unset( $categoriesForPage[$i] );
+				}
+			}
+		}
+		$newCategoriesFull = implode( '|', $categoriesForPage );
+		$cdb->update( $pageDataTable, array( '_categories__full' => $newCategoriesFull ), array( '_pageID' => $pageID ) );
+		if ( $isAdd ) {
+			$res3 = $cdb->select( $categoriesTable, 'MAX(_position) as MaxPosition',  array( '_rowID' => $rowID ) );
+			$row3 = $res3->fetchRow();
+			$maxPosition = $row3['MaxPosition'];
+			$cdb->insert( $categoriesTable, array( '_rowID' => $rowID, '_value' => $categoryName, '_position' => $maxPosition + 1 ) );
+		} else {
+			$cdb->delete( $categoriesTable, array( '_rowID' => $rowID, '_value' => $categoryName ) );
+		}
+
+		// End transaction and apply DB changes.
+		$cdb->commit();
 		return true;
 	}
 

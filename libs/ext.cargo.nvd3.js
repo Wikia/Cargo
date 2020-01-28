@@ -70,6 +70,13 @@ $(document).ready(function() {
 
 		var dataURL = decodeURI( $(this).attr('dataurl') );
 		var innerSVG = $(this).find('svg');
+		var hideLegendStr = $(this).attr('data-hide-legend');
+		var showLegend = ( hideLegendStr != '1' );
+		var labelsType = showLegend ? 'value' : 'key';
+		var colorsStr = $(this).attr('data-colors');
+		if ( colorsStr ) {
+			var colorsVal = JSON.parse( colorsStr );
+		}
 
 		d3.json( dataURL, function(data) {
 			// Pie chart format uses only a
@@ -81,29 +88,26 @@ $(document).ready(function() {
 			var maxLabelSize = 0;
 			var numbersIncludeDecimalPoints = false;
 			for ( var i in data ) {
-				for ( var j in data[i]['values'] ) {
-					var curLabel = data[i]['values'][j]['label'];
-					maxLabelSize = Math.max( maxLabelSize, curLabel.length );
-					if ( !numbersIncludeDecimalPoints ) {
-						var curValue = data[i]['values'][j]['value'];
-						if ( curValue.toString().indexOf( '.' ) >= 0 ) {
-							numbersIncludeDecimalPoints = true;
-						}
+				var curLabel = data[i]['label'];
+				maxLabelSize = Math.max( maxLabelSize, curLabel.length );
+				if ( !numbersIncludeDecimalPoints ) {
+					var curValue = data[i]['value'];
+					if ( curValue.toString().indexOf( '.' ) >= 0 ) {
+						numbersIncludeDecimalPoints = true;
 					}
 				}
 			}
 
 			nv.addGraph(function() {
-				if ( innerSVG.height() == 1 ) {
-					var numLabels = data.length * data[0]['values'].length;
-					var graphHeight = ( numLabels + 2 ) * 22;
-					innerSVG.height( graphHeight );
-				}
-
 				var chart = nv.models.pieChart()
 					.x(function(d) { return d.label })
 					.y(function(d) { return d.value })
 					.showLabels(true)           //Show chart value next to each section.
+					.labelType(labelsType)
+					.showLegend(showLegend)
+				if ( colorsVal ) {
+					chart.color(colorsVal);
+				}
 
 				d3.selectAll(innerSVG)
 					.datum(data)

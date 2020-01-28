@@ -131,8 +131,8 @@ class CargoQueryDisplayer {
 						}
 						$text .= self::formatFieldValue( $fieldValue, $fieldType, $fieldDescription, $this->mParser );
 					}
-				} elseif ( $fieldType == 'Date' || $fieldType == 'Datetime' ) {
-					$datePrecisionField = str_replace( '_', ' ', $fieldName ) . '__precision';
+				} elseif ( $fieldDescription->isDateOrDatetime() ) {
+					$datePrecisionField = $fieldName . '__precision';
 					if ( $fieldName[0] == '_' ) {
 						// Special handling for pre-specified fields.
 						$datePrecision = ( $fieldType == 'Datetime' ) ? CargoStore::DATE_AND_TIME : CargoStore::DATE_ONLY;
@@ -222,11 +222,9 @@ class CargoQueryDisplayer {
 			// namespace; they are displayed as thumbnails within
 			// queries.
 			$title = Title::newFromText( $value, NS_FILE );
-			if ( $title == null ) {
+			if ( $title == null || !$title->exists() ) {
 				return $value;
 			}
-			// makeThumbLinkObj() is still not deprecated in MW 1.28,
-			// but presumably it will be at some point.
 			return Linker::makeThumbLinkObj( $title, wfLocalFile( $title ), $value, '' );
 		} elseif ( $type == 'URL' ) {
 			if ( array_key_exists( 'link text', $fieldDescription->mOtherParams ) ) {
@@ -400,8 +398,11 @@ class CargoQueryDisplayer {
 		if ( $sqlQuery->mJoinOnStr != '' ) {
 			$queryStringParams['join_on'] = $sqlQuery->mJoinOnStr;
 		}
-		if ( $sqlQuery->mGroupByStr != '' ) {
-			$queryStringParams['group_by'] = $sqlQuery->mGroupByStr;
+		if ( $sqlQuery->mOrigGroupByStr != '' ) {
+			$queryStringParams['group_by'] = $sqlQuery->mOrigGroupByStr;
+		}
+		if ( $sqlQuery->mOrigHavingStr != '' ) {
+			$queryStringParams['having'] = $sqlQuery->mOrigHavingStr;
 		}
 		$queryStringParams['order_by'] = $sqlQuery->mOrderBy;
 		if ( $this->mFormat != '' ) {
