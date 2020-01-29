@@ -37,7 +37,7 @@
 	 */
 	recreateData.createJobs = function( templateNum, numPagesHandled, replaceOldRows ) {
 		var curTemplate = templateData[templateNum];
-		var progressImage = "<img src=\"" + cargoScriptPath + "/skins/loading.gif\" />";
+		var progressImage = "<img src=\"" + cargoScriptPath + "/resources/images/loading.gif\" />";
 		if ( numTotalPages > 1000 ) {
 			var remainingPixels = 100 * numTotalPagesHandled / numTotalPages;
 			progressImage = "<progress value=\"" + remainingPixels + "\" max=\"100\"></progress>";
@@ -81,7 +81,7 @@
 		recreateData.replaceForm();
 
 		if ( isDeclared ) {
-			$("#recreateTableProgress").html( "<img src=\"" + cargoScriptPath + "/skins/loading.gif\" />" );
+			$("#recreateTableProgress").html( "<img src=\"" + cargoScriptPath + "/resources/skins/loading.gif\" />" );
 			var api = new mw.Api();
 			api.postWithToken(
 				'csrf',
