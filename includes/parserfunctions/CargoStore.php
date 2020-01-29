@@ -8,7 +8,7 @@
 
 class CargoStore {
 
-	public static $settings = array();
+	public static $settings = [];
 
 	const DATE_AND_TIME = 0;
 	const DATE_ONLY = 1;
@@ -40,7 +40,7 @@ class CargoStore {
 		array_shift( $params ); // we already know the $parser...
 
 		$tableName = null;
-		$tableFieldValues = array();
+		$tableFieldValues = [];
 
 		foreach ( $params as $param ) {
 			$parts = explode( '=', $param, 2 );
@@ -80,7 +80,7 @@ class CargoStore {
 
 		// Get the declaration of the table.
 		$dbw = wfGetDB( DB_MASTER );
-		$res = $dbw->select( 'cargo_tables', 'table_schema', array( 'main_table' => $tableName ) );
+		$res = $dbw->select( 'cargo_tables', 'table_schema', [ 'main_table' => $tableName ] );
 		$row = $dbw->fetchRow( $res );
 		if ( $row == '' ) {
 			// This table probably has not been created yet -
@@ -127,9 +127,9 @@ class CargoStore {
 		// necessary.
 		$dbw = wfGetDB( DB_MASTER );
 		$res = $dbw->select( 'cargo_pages', 'page_id',
-			array( 'table_name' => $tableName, 'page_id' => $pageID ) );
+			[ 'table_name' => $tableName, 'page_id' => $pageID ] );
 		if ( !$row = $dbw->fetchRow( $res ) ) {
-			$dbw->insert( 'cargo_pages', array( 'table_name' => $tableName, 'page_id' => $pageID ) );
+			$dbw->insert( 'cargo_pages', [ 'table_name' => $tableName, 'page_id' => $pageID ] );
 		}
 	}
 
@@ -147,7 +147,7 @@ class CargoStore {
 		}
 
 		foreach ( $tableSchema->mFieldDescriptions as $fieldName => $fieldDescription ) {
-			if ( ! array_key_exists( $fieldName, $tableFieldValues ) ) {
+			if ( !array_key_exists( $fieldName, $tableFieldValues ) ) {
 				continue;
 			}
 			$fieldValue = $tableFieldValues[$fieldName];
@@ -155,7 +155,7 @@ class CargoStore {
 				return "Mandatory field, \"$fieldName\", cannot have a blank value.";
 			}
 			if ( $fieldDescription->mIsUnique && $fieldValue != '' ) {
-				$res = $cdb->select( $tableName, 'COUNT(*)', array( $fieldName => $fieldValue ) );
+				$res = $cdb->select( $tableName, 'COUNT(*)', [ $fieldName => $fieldValue ] );
 				$row = $cdb->fetchRow( $res );
 				$numExistingValues = $row['COUNT(*)'];
 				if ( $numExistingValues == 1 ) {
@@ -183,7 +183,7 @@ class CargoStore {
 		// date in the form YYYYMMDD.
 		if ( ctype_digit( $dateStr ) && strlen( $dateStr ) < 8 ) {
 			// Add a fake date - it will get ignored later.
-			return array( "$dateStr-01-01", self::YEAR_ONLY );
+			return [ "$dateStr-01-01", self::YEAR_ONLY ];
 		}
 
 		// Determine if there's a month but no day. There's no ideal
@@ -208,7 +208,7 @@ class CargoStore {
 		// doesn't include a time value - we can set the value already.
 		if ( $precision != null ) {
 			// Put into YYYY-MM-DD format.
-			return array( date( 'Y-m-d', $seconds ), $precision );
+			return [ date( 'Y-m-d', $seconds ), $precision ];
 		}
 
 		// It's a Datetime field, which may or may not have a time -
@@ -219,7 +219,7 @@ class CargoStore {
 		// there.
 		$precision = self::DATE_AND_TIME;
 		if ( $timePortion !== '0:00:00' ) {
-			return array( $datePortion . ' ' . $timePortion, $precision );
+			return [ $datePortion . ' ' . $timePortion, $precision ];
 		}
 
 		// It's midnight, so chances are good that there was no time
@@ -233,7 +233,7 @@ class CargoStore {
 			$precision = self::DATE_ONLY;
 		}
 		// Either way, we just need the date portion.
-		return array( $datePortion, $precision );
+		return [ $datePortion, $precision ];
 	}
 
 	public static function storeAllData( $title, $tableName, $tableFieldValues, $tableSchema ) {
@@ -252,7 +252,7 @@ class CargoStore {
 				continue;
 			}
 			$curValue = $tableFieldValues[$fieldName];
-			if ( is_null( $curValue ) ) {
+			if ( $curValue === null ) {
 				continue;
 			}
 
@@ -347,7 +347,7 @@ class CargoStore {
 		$tableFieldValues['_pageID'] = $pageID;
 
 		// Allow other hooks to modify the values.
-		Hooks::run( 'CargoBeforeStoreData', array( $title, $tableName, &$tableSchema, &$tableFieldValues ) );
+		Hooks::run( 'CargoBeforeStoreData', [ $title, $tableName, &$tableSchema, &$tableFieldValues ] );
 
 		$cdb = CargoUtils::getDB();
 
@@ -406,12 +406,34 @@ class CargoStore {
 			return;
 		}
 
-		$fieldTableFieldValues = array();
+		// The _position field was only added to list tables in Cargo
+		// 2.1, which means that any list table last created or
+		// re-created before then will not have that field. How to know
+		// whether to populate that field? We go to the first list
+		// table for this main table (there may be more than one), query
+		// that field, and see whether it throws an exception. (We'll
+		// assume that either all the list tables for this main table
+		// have a _position field, or none do.)
+		$hasPositionField = true;
+		foreach ( $tableSchema->mFieldDescriptions as $fieldName => $fieldDescription ) {
+			if ( $fieldDescription->mIsList ) {
+				$listFieldTableName = $tableName . '__' . $fieldName;
+				try {
+					$res = $cdb->select( $listFieldTableName, 'COUNT(' .
+						$cdb->addIdentifierQuotes( '_position' ) . ')' );
+				} catch ( Exception $e ) {
+					$hasPositionField = false;
+				}
+				break;
+			}
+		}
+
+		$fieldTableFieldValues = [];
 
 		// For each field that holds a list of values, also add its
 		// values to its own table; and rename the actual field.
 		foreach ( $tableSchema->mFieldDescriptions as $fieldName => $fieldDescription ) {
-			if ( ! array_key_exists( $fieldName, $tableFieldValues ) ) {
+			if ( !array_key_exists( $fieldName, $tableFieldValues ) ) {
 				continue;
 			}
 			$fieldType = $fieldDescription->mType;
@@ -426,10 +448,10 @@ class CargoStore {
 					if ( $individualValue == '' ) {
 						continue;
 					}
-					$fieldValues = array(
+					$fieldValues = [
 						'_rowID' => $curRowID,
 						'_value' => $individualValue
-					);
+					];
 					if ( $hasPositionField ) {
 						$fieldValues['_position'] = $valueNum++;
 					}
@@ -447,7 +469,7 @@ class CargoStore {
 					// We could store these values in the DB
 					// now, but we'll do it later, to keep
 					// the transaction as short as possible.
-					$fieldTableFieldValues[] = array( $fieldTableName, $fieldValues );
+					$fieldTableFieldValues[] = [ $fieldTableName, $fieldValues ];
 				}
 
 				// Now rename the field.
@@ -502,12 +524,12 @@ class CargoStore {
 						continue;
 					}
 					$fileName = CargoUtils::removeNamespaceFromFileName( $individualValue );
-					$fieldValues = array(
+					$fieldValues = [
 						'_pageName' => $pageName,
 						'_pageID' => $pageID,
 						'_fieldName' => $fieldName,
 						'_fileName' => $fileName
-					);
+					];
 					CargoUtils::escapedInsert( $cdb, $fileTableName, $fieldValues );
 				}
 			} else {
@@ -516,12 +538,12 @@ class CargoStore {
 					continue;
 				}
 				$fileName = CargoUtils::removeNamespaceFromFileName( $fullFileName );
-				$fieldValues = array(
+				$fieldValues = [
 					'_pageName' => $pageName,
 					'_pageID' => $pageID,
 					'_fieldName' => $fieldName,
 					'_fileName' => $fileName
-				);
+				];
 				CargoUtils::escapedInsert( $cdb, $fileTableName, $fieldValues );
 			}
 		}
@@ -536,9 +558,9 @@ class CargoStore {
 	 */
 	public static function doesRowAlreadyExist( $cdb, $title, $tableName, $tableFieldValues, $tableSchema ) {
 		$pageID = $title->getArticleID();
-		$tableFieldValuesForCheck = array( $cdb->addIdentifierQuotes( '_pageID' ) => $pageID );
+		$tableFieldValuesForCheck = [ $cdb->addIdentifierQuotes( '_pageID' ) => $pageID ];
 		foreach ( $tableSchema->mFieldDescriptions as $fieldName => $fieldDescription ) {
-			if ( ! array_key_exists( $fieldName, $tableFieldValues ) ) {
+			if ( !array_key_exists( $fieldName, $tableFieldValues ) ) {
 				continue;
 			}
 			if ( $fieldDescription->mIsList || $fieldDescription->mType == 'Coordinates' ) {
@@ -546,7 +568,34 @@ class CargoStore {
 			} else {
 				$quotedFieldName = $cdb->addIdentifierQuotes( $fieldName );
 			}
-			$tableFieldValuesForCheck[$quotedFieldName] = $tableFieldValues[$fieldName];
+			$fieldValue = $tableFieldValues[$fieldName];
+
+			if ( in_array( $fieldDescription->mType, [ 'Text', 'Wikitext', 'Searchtext' ] ) ) {
+				// @HACK - for some reason, there are times
+				// when, for long values, the check only works
+				// if there's some kind of limit in place.
+				// Rather than delve into that, we'll just
+				// make sure to only check a (relatively large)
+				// substring - which should be good enough.
+				$fieldSize = 1000;
+			} else {
+				$fieldSize = $fieldDescription->getFieldSize();
+			}
+
+			if ( $fieldValue == '' ) {
+				// Needed for correct SQL handling of blank values, for some reason.
+				$fieldValue = null;
+			} elseif ( $fieldSize != null && strlen( $fieldValue ) > $fieldSize ) {
+				// In theory, this SUBSTR() call is not needed,
+				// since the value stored in the DB won't be
+				// greater than this size. But that's not
+				// always true - there's the hack mentioned
+				// above, plus some other cases.
+				$quotedFieldName = "SUBSTR($quotedFieldName, 1, $fieldSize)";
+				$fieldValue = substr( $fieldValue, 0, $fieldSize );
+			}
+
+			$tableFieldValuesForCheck[$quotedFieldName] = $fieldValue;
 		}
 		$res = $cdb->select( $tableName, 'COUNT(*)', $tableFieldValuesForCheck );
 		$row = $cdb->fetchRow( $res );

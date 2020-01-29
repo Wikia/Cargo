@@ -3,15 +3,11 @@
  * An interface to delete a "Cargo table", which can be one or more real
  * database tables.
  *
- * The class is called CargoDeleteCargoTable, the file is called
- * CargoDeleteTable.php, and the wiki page is Special:DeleteCargoTable...
- * sorry for the confusion!
- *
  * @author Yaron Koren
  * @ingroup Cargo
  */
 
-class CargoDeleteCargoTable extends UnlistedSpecialPage {
+class SpecialDeleteCargoTable extends UnlistedSpecialPage {
 
 	function __construct() {
 		parent::__construct( 'DeleteCargoTable', 'deletecargodata' );
@@ -48,11 +44,11 @@ class CargoDeleteCargoTable extends UnlistedSpecialPage {
 		}
 
 		$dbw = wfGetDB( DB_MASTER );
-		$dbw->delete( 'cargo_tables', array( 'main_table' => $mainTable ) );
-		$dbw->delete( 'cargo_pages', array( 'table_name' => $mainTable ) );
+		$dbw->delete( 'cargo_tables', [ 'main_table' => $mainTable ] );
+		$dbw->delete( 'cargo_pages', [ 'table_name' => $mainTable ] );
 	}
 
-	function execute( $subpage = false ) {
+	function execute( $subpage ) {
 		$out = $this->getOutput();
 		$req = $this->getRequest();
 
@@ -74,8 +70,8 @@ class CargoDeleteCargoTable extends UnlistedSpecialPage {
 
 		// Make sure that this table exists.
 		$dbr = wfGetDB( DB_REPLICA );
-		$res = $dbr->select( 'cargo_tables', array( 'main_table', 'field_tables', 'field_helper_tables' ),
-			array( 'main_table' => $tableName ) );
+		$res = $dbr->select( 'cargo_tables', [ 'main_table', 'field_tables', 'field_helper_tables' ],
+			[ 'main_table' => $tableName ] );
 		if ( $res->numRows() == 0 ) {
 			CargoUtils::displayErrorMessage( $out, $this->msg( "cargo-unknowntable", $tableName ) );
 			return true;
@@ -113,20 +109,18 @@ class CargoDeleteCargoTable extends UnlistedSpecialPage {
 			$replacementTableURL .= ( strpos( $replacementTableURL, '?' ) ) ? '&' : '?';
 			$replacementTableURL .= '_replacement';
 			$text = Html::rawElement( 'p',
-				array( 'class' => 'plainlinks' ),
+				[ 'class' => 'plainlinks' ],
 				$this->msg( 'cargo-deletetable-replacementconfirm', $replacementTableURL, $tableLink )->parse()
 			);
 		} else {
 			$text = Html::rawElement( 'p',
-				array( 'class' => 'plainlinks' ),
+				[ 'class' => 'plainlinks' ],
 				$this->msg( 'cargo-deletetable-confirm', $tableLink )->parse()
 			);
 		}
 		$out->addHTML( $text );
 
-		// Class, and display format, were added in MW 1.25.
-		$displayFormat = ( class_exists( 'OOUIHTMLForm' ) ) ? 'ooui' : 'div';
-		$htmlForm = HTMLForm::factory( $displayFormat, array(), $this->getContext() );
+		$htmlForm = HTMLForm::factory( 'ooui', [], $this->getContext() );
 
 		if ( $replacementTable ) {
 			$htmlForm = $htmlForm->addHiddenField( '_replacement', '' );

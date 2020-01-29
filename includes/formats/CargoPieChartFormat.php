@@ -7,10 +7,12 @@
 class CargoPieChartFormat extends CargoDeferredFormat {
 
 	public static function allowedParameters() {
-		return array(
-			'height' => array( 'type' => 'int', 'label' => wfMessage( 'cargo-viewdata-heightparam' )->parse() ),
-			'width' => array( 'type' => 'int', 'label' => wfMessage( 'cargo-viewdata-widthparam' )->parse() )
-		);
+		return [
+			'height' => [ 'type' => 'int', 'label' => wfMessage( 'cargo-viewdata-heightparam' )->parse() ],
+			'width' => [ 'type' => 'int', 'label' => wfMessage( 'cargo-viewdata-widthparam' )->parse() ],
+			'colors' => [ 'type' => 'string', 'label' => wfMessage( 'cargo-viewdata-colorsparam' )->parse() ],
+			'hide legend' => [ 'type' => 'boolean', 'label' => wfMessage( 'cargo-viewdata-hidelegendparam' )->parse() ]
+		];
 	}
 
 	/**
@@ -26,7 +28,7 @@ class CargoPieChartFormat extends CargoDeferredFormat {
 		$queryParams = $this->sqlQueriesToQueryParams( $sqlQueries );
 		$queryParams['format'] = 'nvd3chart';
 
-		$svgAttrs = array();
+		$svgAttrs = [];
 		if ( array_key_exists( 'width', $displayParams ) && $displayParams['width'] != '' ) {
 			$width = $displayParams['width'];
 			// Add on "px", if no unit is defined.
@@ -51,10 +53,16 @@ class CargoPieChartFormat extends CargoDeferredFormat {
 
 		$svgText = Html::element( 'svg', $svgAttrs, '' );
 
-		$divAttrs = array(
+		$divAttrs = [
 			'class' => 'cargoPieChart',
 			'dataurl' => $ce->getFullURL( $queryParams ),
-		);
+		];
+		if ( array_key_exists( 'colors', $displayParams ) && $displayParams['colors'] != '' ) {
+			$divAttrs['data-colors'] = json_encode( explode( ',', $displayParams['colors'] ) );
+		}
+		if ( array_key_exists( 'hide legend', $displayParams ) ) {
+			$divAttrs['data-hide-legend'] = ( $displayParams['hide legend'] == 'yes' ) ? 1 : 0;
+		}
 		$text = Html::rawElement( 'div', $divAttrs, $svgText );
 
 		return $text;

@@ -30,7 +30,7 @@ class CargoSQLQuery {
 	public $mOrderBy;
 	public $mQueryLimit;
 	public $mOffset;
-	public $mSearchTerms = array();
+	public $mSearchTerms = [];
 
 	function __construct() {
 		$this->mCargoDB = CargoUtils::getDB();
@@ -107,10 +107,10 @@ class CargoSQLQuery {
 		// being included in string comparisons.
 		// However, before we do that, check for certain strings that
 		// shouldn't be in quote marks either.
-		$whereStrRegexps = array(
+		$whereStrRegexps = [
 			'/\-\-/' => '--',
 			'/#/' => '#',
-		);
+		];
 
 		// HTML-decode the string - this is necessary if the query
 		// contains a call to {{PAGENAME}} and the page name has any
@@ -129,7 +129,7 @@ class CargoSQLQuery {
 		$noQuotesHavingStr = CargoUtils::removeQuotedStrings( $havingStr );
 		$noQuotesOrderByStr = CargoUtils::removeQuotedStrings( $orderByStr );
 
-		$regexps = array(
+		$regexps = [
 			'/\bselect\b/i' => 'SELECT',
 			'/\binto\b/i' => 'INTO',
 			'/\bfrom\b/i' => 'FROM',
@@ -140,7 +140,7 @@ class CargoSQLQuery {
 			'/\-\-/' => '--',
 			'/\/\*/' => '/*',
 			'/#/' => '#',
-		);
+		];
 		foreach ( $regexps as $regexp => $displayString ) {
 			if ( preg_match( $regexp, $tablesStr ) ||
 				preg_match( $regexp, $noQuotesFieldsStr ) ||
@@ -177,7 +177,7 @@ class CargoSQLQuery {
 	 * SQL fragment.
 	 */
 	function setAliasedFieldNames() {
-		$this->mAliasedFieldNames = array();
+		$this->mAliasedFieldNames = [];
 		$fieldStrings = CargoUtils::smartSplit( ',', $this->mFieldsStr );
 		// Default is "_pageName".
 		if ( count( $fieldStrings ) == 0 ) {
@@ -231,7 +231,7 @@ class CargoSQLQuery {
 	}
 
 	function setAliasedTableNames() {
-		$this->mAliasedTableNames = array();
+		$this->mAliasedTableNames = [];
 		$tableStrings = CargoUtils::smartSplit( ',', $this->mTablesStr );
 
 		foreach ( $tableStrings as $i => $tableString ) {
@@ -264,7 +264,7 @@ class CargoSQLQuery {
 		// This string is needed for "deferred" queries.
 		$this->mJoinOnStr = $joinOnStr;
 
-		$this->mCargoJoinConds = array();
+		$this->mCargoJoinConds = [];
 
 		if ( trim( $joinOnStr ) == '' ) {
 			if ( count( $this->mAliasedTableNames ) > 1 ) {
@@ -275,7 +275,7 @@ class CargoSQLQuery {
 
 		$joinStrings = explode( ',', $joinOnStr );
 		// 'HOLDS' must be all-caps for now.
-		$allowedJoinOperators = array( '=', ' HOLDS ', '<=', '>=', '<', '>' );
+		$allowedJoinOperators = [ '=', ' HOLDS ', '<=', '>=', '<', '>' ];
 		$joinOperator = null;
 
 		foreach ( $joinStrings as $joinString ) {
@@ -306,14 +306,14 @@ class CargoSQLQuery {
 				throw new MWException( "Table and field name must both be specified in '$joinPart2'." );
 			}
 			list( $table2, $field2 ) = $tableAndField2;
-			$joinCond = array(
+			$joinCond = [
 				'joinType' => 'LEFT OUTER JOIN',
 				'table1' => $table1,
 				'field1' => $field1,
 				'table2' => $table2,
 				'field2' => $field2,
 				'joinOperator' => $joinOperator
-			);
+			];
 			$this->mCargoJoinConds[] = $joinCond;
 		}
 
@@ -324,7 +324,7 @@ class CargoSQLQuery {
 		$numUnmatchedTables = count( $this->mAliasedTableNames );
 		$firstJoinCond = current( $this->mCargoJoinConds );
 		$firstTableInJoins = $firstJoinCond['table1'];
-		$matchedTables = array( $firstTableInJoins );
+		$matchedTables = [ $firstTableInJoins ];
 		do {
 			$previousNumUnmatchedTables = $numUnmatchedTables;
 			foreach ( $this->mCargoJoinConds as $joinCond ) {
@@ -352,7 +352,7 @@ class CargoSQLQuery {
 		if ( $numUnmatchedTables > 0 ) {
 			foreach ( array_keys( $this->mAliasedTableNames ) as $tableAlias ) {
 				if ( !in_array( $tableAlias, $matchedTables ) ) {
-					throw new MWException( "Error: Table \"$tableName\" is not included within the "
+					throw new MWException( "Error: Table \"$tableAlias\" is not included within the "
 					. "join conditions." );
 				}
 			}
@@ -369,7 +369,7 @@ class CargoSQLQuery {
 			return;
 		}
 
-		$this->mJoinConds = array();
+		$this->mJoinConds = [];
 		foreach ( $this->mCargoJoinConds as $cargoJoinCond ) {
 			// Only add the DB prefix to the table names if
 			// they're true table names and not aliases.
@@ -393,22 +393,29 @@ class CargoSQLQuery {
 
 			$field1 = $this->mCargoDB->addIdentifierQuotes( $cargoJoinCond['field1'] );
 			$field2 = $this->mCargoDB->addIdentifierQuotes( $cargoJoinCond['field2'] );
-			$joinCondConds = array(
+			$joinCondConds = [
 				$cargoTable1 . '.' . $field1 . $joinOperator .
 				$cargoTable2 . '.' . $field2
-			);
+			];
 			if ( array_key_exists( 'extraCond', $cargoJoinCond ) ) {
 				$joinCondConds[] = $cargoJoinCond['extraCond'];
 			}
-			$this->mJoinConds[$table2] = array(
-				$cargoJoinCond['joinType'],
-				$joinCondConds
-			);
+			if ( !array_key_exists( $table2, $this->mJoinConds ) ) {
+				$this->mJoinConds[$table2] = [
+					$cargoJoinCond['joinType'],
+					$joinCondConds
+				];
+			} else {
+				$this->mJoinConds[$table2][1] = array_merge(
+					$this->mJoinConds[$table2][1],
+					$joinCondConds
+				);
+			}
 		}
 	}
 
 	function setOrderBy( $orderByStr = null ) {
-		$this->mOrderBy = array();
+		$this->mOrderBy = [];
 		if ( $orderByStr != '' ) {
 			$orderByElements = CargoUtils::smartSplit( ',', $orderByStr );
 			foreach ( $orderByElements as $elem ) {
@@ -467,7 +474,7 @@ class CargoSQLQuery {
 	static function getAndValidateSQLFunctions( $str ) {
 		global $wgCargoAllowedSQLFunctions;
 
-		$sqlFunctionMatches = array();
+		$sqlFunctionMatches = [];
 		$sqlFunctionRegex = '/(\b|\W)(\w*?)\s*\(/';
 		preg_match_all( $sqlFunctionRegex, $str, $sqlFunctionMatches );
 		$sqlFunctions = array_map( 'strtoupper', $sqlFunctionMatches[2] );
@@ -476,7 +483,7 @@ class CargoSQLQuery {
 		// are not in our "whitelist" of SQL functions.
 		// Also add to this whitelist SQL operators like AND, OR, NOT,
 		// etc., because the parsing can mistake these for functions.
-		$logicalOperators = array( 'AND', 'OR', 'NOT', 'IN' );
+		$logicalOperators = [ 'AND', 'OR', 'NOT', 'IN' ];
 		$allowedFunctions = array_merge( $wgCargoAllowedSQLFunctions, $logicalOperators );
 		foreach ( $sqlFunctions as $sqlFunction ) {
 			// @TODO - fix the original regexp to avoid blank
@@ -532,7 +539,7 @@ class CargoSQLQuery {
 				$stringPatternFound = count( $stringPatternMatches ) == 3;
 			}
 
-			if ( ! $stringPatternFound ) {
+			if ( !$stringPatternFound ) {
 				$noQuotesOrigFieldName = CargoUtils::removeQuotedStrings( $origFieldName );
 
 				$functionCallPattern = '/\p{L}\s*\(/';
@@ -555,14 +562,14 @@ class CargoSQLQuery {
 			// lists because it sometimes returns an
 			// integer, sometimes a float - for formatting
 			// purposes, we'll just treat it as a string.
-			if ( in_array( $firstFunction, array( 'COUNT', 'FLOOR', 'CEIL' ) ) ) {
+			if ( in_array( $firstFunction, [ 'COUNT', 'FLOOR', 'CEIL' ] ) ) {
 				$description->mType = 'Integer';
-			} elseif ( in_array( $firstFunction, array( 'SUM', 'POWER', 'LN', 'LOG' ) ) ) {
+			} elseif ( in_array( $firstFunction, [ 'SUM', 'POWER', 'LN', 'LOG' ] ) ) {
 				$description->mType = 'Float';
 			} elseif ( in_array( $firstFunction,
-					array( 'DATE', 'DATE_ADD', 'DATE_SUB', 'DATE_DIFF' ) ) ) {
+					[ 'DATE', 'DATE_ADD', 'DATE_SUB', 'DATE_DIFF' ] ) ) {
 				$description->mType = 'Date';
-			} elseif ( in_array( $firstFunction, array( 'TRIM' ) ) ) {
+			} elseif ( in_array( $firstFunction, [ 'TRIM' ] ) ) {
 				// @HACK - allow users one string function
 				// (TRIM()) that will return a String type, and
 				// thus won't have its value parsed as wikitext.
@@ -570,7 +577,7 @@ class CargoSQLQuery {
 				// just wanting to call TRIM(). (In that case,
 				// they can wrap the call in CONCAT().)
 				$description->mType = 'String';
-			} elseif ( in_array( $firstFunction, array( 'MAX', 'MIN', 'AVG' ) ) ) {
+			} elseif ( in_array( $firstFunction, [ 'MAX', 'MIN', 'AVG' ] ) ) {
 				// These are special functions in that the type
 				// of their output is not fixed, but rather
 				// matches the type of their input. So we find
@@ -586,7 +593,7 @@ class CargoSQLQuery {
 					// field will keep it as Rating.
 					$description->mType = 'Float';
 				} else {
-					return array( $innerDesc, $innerTableName );
+					return [ $innerDesc, $innerTableName ];
 				}
 			}
 			// If it's anything else ('CONCAT', 'SUBSTRING',
@@ -667,7 +674,7 @@ class CargoSQLQuery {
 			}
 		}
 
-		return array( $description, $tableName );
+		return [ $description, $tableName ];
 	}
 
 	/**
@@ -676,8 +683,8 @@ class CargoSQLQuery {
 	 * #cargo_query call), using the set of schemas for all data tables.
 	 */
 	function setDescriptionsAndTableNamesForFields() {
-		$this->mFieldDescriptions = array();
-		$this->mFieldTables = array();
+		$this->mFieldDescriptions = [];
+		$this->mFieldTables = [];
 		foreach ( $this->mAliasedFieldNames as $alias => $origFieldName ) {
 			list( $description, $tableName ) = $this->getDescriptionAndTableNameForField( $origFieldName );
 
@@ -721,7 +728,7 @@ class CargoSQLQuery {
 		// http://stackoverflow.com/a/1783125
 		$indexOfMainTable = array_search( $tableAlias, array_keys( $this->mAliasedTableNames ) );
 		$offset = $indexOfMainTable + 1;
-		$this->mAliasedTableNames = array_slice( $this->mAliasedTableNames, 0, $offset, true ) + array( $fieldTableAlias => $fieldTableName ) + array_slice( $this->mAliasedTableNames, $offset, null, true );
+		$this->mAliasedTableNames = array_slice( $this->mAliasedTableNames, 0, $offset, true ) + [ $fieldTableAlias => $fieldTableName ] + array_slice( $this->mAliasedTableNames, $offset, null, true );
 	}
 
 	/**
@@ -777,7 +784,7 @@ class CargoSQLQuery {
 
 		// First, create an array of the virtual fields in the current
 		// set of tables.
-		$virtualFields = array();
+		$virtualFields = [];
 		foreach ( $this->mTableSchemas as $tableName => $tableSchema ) {
 			foreach ( $tableSchema->mFieldDescriptions as $fieldName => $fieldDescription ) {
 				if ( !$fieldDescription->mIsList ) {
@@ -785,20 +792,20 @@ class CargoSQLQuery {
 				}
 				foreach ( $this->mAliasedTableNames as $tableAlias => $tableName2 ) {
 					if ( $tableName == $tableName2 ) {
-						$virtualFields[] = array(
+						$virtualFields[] = [
 							'fieldName' => $fieldName,
 							'tableAlias' => $tableAlias,
 							'tableName' => $tableName,
 							'fieldType' => $fieldDescription->mType,
 							'isHierarchy' => $fieldDescription->mIsHierarchy
-						);
+						];
 					}
 				}
 			}
 		}
 
 		// "where"
-		$matches = array();
+		$matches = [];
 		$numHoldsExpressions = 0;
 		foreach ( $virtualFields as $virtualField ) {
 			$fieldName = $virtualField['fieldName'];
@@ -814,14 +821,14 @@ class CargoSQLQuery {
 			$fieldReplaced = false;
 			$throwException = false;
 
-			$patternSimple = array(
+			$patternSimple = [
 				CargoUtils::getSQLTableAndFieldPattern( $tableAlias, $fieldName ),
 				CargoUtils::getSQLFieldPattern( $fieldName )
-				);
-			$patternRoot = array(
+				];
+			$patternRoot = [
 				CargoUtils::getSQLTableAndFieldPattern( $tableAlias, $fieldName, false ) . '\s+',
 				CargoUtils::getSQLFieldPattern( $fieldName, false ) . '\s+'
-				);
+				];
 
 			$fullExpression = null;
 			for ( $i = 0; $i < 2; $i++ ) {
@@ -880,13 +887,13 @@ class CargoSQLQuery {
 
 			if ( $fieldReplaced ) {
 				$this->addFieldTableToTableNames( $fieldTableName, $fieldTableAlias, $tableAlias );
-				$cargoJoinConds = array(
+				$cargoJoinConds = [
 					'joinType' => 'LEFT OUTER JOIN',
 					'table1' => $tableAlias,
 					'field1' => '_ID',
 					'table2' => $fieldTableAlias,
 					'field2' => '_rowID'
-				);
+				];
 				// We store this in order to add it to the
 				// JOIN clause, because it's necessary, for
 				// somewhat complex reasons, if there are
@@ -913,7 +920,7 @@ class CargoSQLQuery {
 		}
 
 		// "join on"
-		$newCargoJoinConds = array();
+		$newCargoJoinConds = [];
 		foreach ( $this->mCargoJoinConds as $i => $joinCond ) {
 			// We only handle 'HOLDS' here - no joining on
 			// 'HOLDS LIKE'.
@@ -931,21 +938,21 @@ class CargoSQLQuery {
 				$fieldTableName = $tableName . '__' . $fieldName;
 				$fieldTableAlias = $tableAlias . '__' . $fieldName;
 				$this->addFieldTableToTableNames( $fieldTableName, $fieldTableAlias, $tableAlias );
-				$newJoinCond = array(
+				$newJoinCond = [
 					'joinType' => 'LEFT OUTER JOIN',
 					'table1' => $tableAlias,
 					'field1' => '_ID',
 					'table2' => $fieldTableAlias,
 					'field2' => '_rowID'
-				);
+				];
 				$newCargoJoinConds[] = $newJoinCond;
-				$newJoinCond2 = array(
+				$newJoinCond2 = [
 					'joinType' => 'RIGHT OUTER JOIN',
 					'table1' => $fieldTableAlias,
 					'field1' => '_value',
 					'table2' => $this->mCargoJoinConds[$i]['table2'],
 					'field2' => $this->mCargoJoinConds[$i]['field2']
-				);
+				];
 				$newCargoJoinConds[] = $newJoinCond2;
 				// Is it safe to unset an array value while
 				// cycling through the array? Hopefully.
@@ -959,7 +966,7 @@ class CargoSQLQuery {
 		// unlike those two, a virtual field here can affect the
 		// set of tables and fields being included - which will
 		// affect the other two.
-		$matches = array();
+		$matches = [];
 		foreach ( $virtualFields as $virtualField ) {
 			$fieldName = $virtualField['fieldName'];
 			$tableAlias = $virtualField['tableAlias'];
@@ -977,13 +984,13 @@ class CargoSQLQuery {
 				$fieldTableAlias = $tableAlias . '__' . $fieldName;
 				if ( !$this->fieldTableIsIncluded( $fieldTableAlias ) ) {
 					$this->addFieldTableToTableNames( $fieldTableName, $fieldTableAlias, $tableAlias );
-					$this->mCargoJoinConds[] = array(
+					$this->mCargoJoinConds[] = [
 						'joinType' => 'LEFT OUTER JOIN',
 						'table1' => $tableAlias,
 						'field1' => '_ID',
 						'table2' => $fieldTableAlias,
 						'field2' => '_rowID'
-					);
+					];
 				}
 				$replacement = "$fieldTableAlias._value";
 
@@ -1035,7 +1042,7 @@ class CargoSQLQuery {
 		}
 
 		// "order by"
-		$matches = array();
+		$matches = [];
 		foreach ( $virtualFields as $virtualField ) {
 			$fieldName = $virtualField['fieldName'];
 			$tableAlias = $virtualField['tableAlias'];
@@ -1049,7 +1056,7 @@ class CargoSQLQuery {
 				if ( !$foundMatch1 ) {
 					$foundMatch2 = preg_match( $pattern2, $orderByElem, $matches );
 				}
-				if ( ! $foundMatch1 && ! $foundMatch2 ) {
+				if ( !$foundMatch1 && !$foundMatch2 ) {
 					continue;
 				}
 				$fieldTableAlias = $tableAlias . '__' . $fieldName;
@@ -1085,17 +1092,17 @@ class CargoSQLQuery {
 
 		// First, create an array of the coordinate fields in the
 		// current set of tables.
-		$coordinateFields = array();
+		$coordinateFields = [];
 		foreach ( $this->mTableSchemas as $tableName => $tableSchema ) {
 			foreach ( $tableSchema->mFieldDescriptions as $fieldName => $fieldDescription ) {
 				if ( $fieldDescription->mType == 'Coordinates' ) {
 					foreach ( $this->mAliasedTableNames as $tableAlias => $tableName2 ) {
 						if ( $tableName == $tableName2 ) {
-							$coordinateFields[] = array(
+							$coordinateFields[] = [
 								'fieldName' => $fieldName,
 								'tableName' => $tableName,
 								'tableAlias' => $tableAlias,
-							);
+							];
 							break;
 						}
 					}
@@ -1144,7 +1151,7 @@ class CargoSQLQuery {
 
 		// "where"
 		// @TODO - add handling for "HOLDS POINT NEAR"
-		$matches = array();
+		$matches = [];
 		foreach ( $coordinateFields as $coordinateField ) {
 			$fieldName = $coordinateField['fieldName'];
 			$tableAlias = $coordinateField['tableAlias'];
@@ -1197,7 +1204,7 @@ class CargoSQLQuery {
 		// "order by"
 		// This one is simpler than the others - just add a "__full"
 		// to each coordinates field in the "order by" clause.
-		$matches = array();
+		$matches = [];
 		foreach ( $coordinateFields as $coordinateField ) {
 			$fieldName = $coordinateField['fieldName'];
 			$tableAlias = $coordinateField['tableAlias'];
@@ -1223,7 +1230,7 @@ class CargoSQLQuery {
 
 		// First, create an array of the hierarchy fields in the
 		// current set of tables.
-		$hierarchyFields = array();
+		$hierarchyFields = [];
 		foreach ( $this->mTableSchemas as $tableName => $tableSchema ) {
 			foreach ( $tableSchema->mFieldDescriptions as $fieldName => $fieldDescription ) {
 				if ( !$fieldDescription->mIsHierarchy ) {
@@ -1231,12 +1238,12 @@ class CargoSQLQuery {
 				}
 				foreach ( $this->mAliasedTableNames as $tableAlias => $tableName2 ) {
 					if ( $tableName == $tableName2 ) {
-						$hierarchyFields[] = array(
+						$hierarchyFields[] = [
 							'fieldName' => $fieldName,
 							'tableAlias' => $tableAlias,
 							'tableName' => $tableName,
 							'isList' => $fieldDescription->mIsList
-						);
+						];
 					}
 				}
 			}
@@ -1249,14 +1256,14 @@ class CargoSQLQuery {
 			$tableAlias = $hierarchyField['tableAlias'];
 			$fieldIsList = $hierarchyField['isList'];
 
-			$patternSimple = array(
+			$patternSimple = [
 				CargoUtils::getSQLTableAndFieldPattern( $tableAlias, $fieldName ),
 				CargoUtils::getSQLFieldPattern( $fieldName )
-				);
-			$patternRootArray = array(
+				];
+			$patternRootArray = [
 				CargoUtils::getSQLTableAndFieldPattern( $tableAlias, $fieldName, false ),
 				CargoUtils::getSQLFieldPattern( $fieldName, false )
-				);
+				];
 
 			$simpleMatch = false;
 			$completeMatch = false;
@@ -1275,10 +1282,10 @@ class CargoSQLQuery {
 				continue;
 			}
 			$patternSuffix = '([\'"]?[^\'"]*[\'"]?)/i';  // To capture string in quotes or a number
-			$hierarchyTable = $this->mCargoDB->tableName( $tableName  . '__' . $fieldName .   '__hierarchy' );
+			$hierarchyTable = $this->mCargoDB->tableName( $tableName . '__' . $fieldName . '__hierarchy' );
 			$fieldTableName = $this->mCargoDB->tableName( $tableName . '__' . $fieldName );
 			$completeSearchPattern = "";
-			$matches = array();
+			$matches = [];
 			$newWhere = "";
 
 			if ( preg_match( $patternRoot . '(\s+HOLDS WITHIN\s+)' . $patternSuffix, $this->mWhereStr, $matches ) ) {
@@ -1335,9 +1342,9 @@ class CargoSQLQuery {
 	 * when doing this conversion, but latitude does.)
 	 */
 	static function distanceToDegrees( $distanceNumber, $distanceUnit, $latString ) {
-		if ( in_array( $distanceUnit, array( 'kilometers', 'kilometres', 'km' ) ) ) {
+		if ( in_array( $distanceUnit, [ 'kilometers', 'kilometres', 'km' ] ) ) {
 			$distanceInKM = $distanceNumber;
-		} elseif ( in_array( $distanceUnit, array( 'miles', 'mi' ) ) ) {
+		} elseif ( in_array( $distanceUnit, [ 'miles', 'mi' ] ) ) {
 			$distanceInKM = $distanceNumber * 1.60934;
 		} else {
 			throw new MWException( "Error: distance for 'NEAR' operator must be in either miles or "
@@ -1354,7 +1361,7 @@ class CargoSQLQuery {
 		if ( strpos( $latString, 'S' ) > 0 ) {
 			$latIsNegative = true;
 		}
-		$latString = str_replace( array( 'N', 'S' ), '', $latString );
+		$latString = str_replace( [ 'N', 'S' ], '', $latString );
 		if ( is_numeric( $latString ) ) {
 			$latNum = floatval( $latString );
 		} else {
@@ -1367,7 +1374,7 @@ class CargoSQLQuery {
 		$lengthOfOneDegreeLongitude = cos( deg2rad( $latNum ) ) * 111.321;
 		$longDistance = $distanceInKM / $lengthOfOneDegreeLongitude;
 
-		return array( $latDistance, $longDistance );
+		return [ $latDistance, $longDistance ];
 	}
 
 	/**
@@ -1376,7 +1383,7 @@ class CargoSQLQuery {
 	 * the query.
 	 */
 	function handleDateFields() {
-		$dateFields = array();
+		$dateFields = [];
 		foreach ( $this->mOrigAliasedFieldNames as $alias => $fieldName ) {
 			if ( !array_key_exists( $alias, $this->mFieldDescriptions ) ) {
 				continue;
@@ -1405,7 +1412,7 @@ class CargoSQLQuery {
 	}
 
 	function handleSearchTextFields() {
-		$searchTextFields = array();
+		$searchTextFields = [];
 		foreach ( $this->mTableSchemas as $tableName => $tableSchema ) {
 			foreach ( $tableSchema->mFieldDescriptions as $fieldName => $fieldDescription ) {
 				if ( $fieldDescription->mType != 'Searchtext' ) {
@@ -1419,15 +1426,15 @@ class CargoSQLQuery {
 				if ( $fieldAlias === false ) {
 					$fieldAlias = $fieldName;
 				}
-				$searchTextFields[] = array(
+				$searchTextFields[] = [
 					'fieldName' => $fieldName,
 					'fieldAlias' => $fieldAlias,
 					'tableName' => $tableName
-				);
+				];
 			}
 		}
 
-		$matches = array();
+		$matches = [];
 		foreach ( $searchTextFields as $searchTextField ) {
 			$fieldName = $searchTextField['fieldName'];
 			$fieldAlias = $searchTextField['fieldAlias'];
@@ -1470,7 +1477,7 @@ class CargoSQLQuery {
 		foreach ( $this->mAliasedFieldNames as $alias => $fieldName ) {
 			$this->mAliasedFieldNames[$alias] = $this->addTablePrefixes( $fieldName );
 		}
-		if ( !is_null( $this->mWhereStr ) ) {
+		if ( $this->mWhereStr !== null ) {
 			$this->mWhereStr = $this->addTablePrefixes( $this->mWhereStr );
 		}
 		$this->mGroupByStr = $this->addTablePrefixes( $this->mGroupByStr );
@@ -1491,7 +1498,7 @@ class CargoSQLQuery {
 			}
 		}
 
-		$selectOptions = array();
+		$selectOptions = [];
 
 		if ( $this->mGroupByStr != '' ) {
 			$selectOptions['GROUP BY'] = $this->mGroupByStr;
@@ -1508,7 +1515,7 @@ class CargoSQLQuery {
 
 		// Aliases need to be surrounded by quotes when we actually
 		// call the DB query.
-		$realAliasedFieldNames = array();
+		$realAliasedFieldNames = [];
 		foreach ( $this->mAliasedFieldNames as $alias => $fieldName ) {
 			// Starting in MW 1.27 (specifically, with
 			// https://gerrit.wikimedia.org/r/#/c/286489/),
@@ -1544,9 +1551,9 @@ class CargoSQLQuery {
 
 		// Is there a more straightforward way of turning query
 		// results into an array?
-		$resultArray = array();
+		$resultArray = [];
 		while ( $row = $this->mCargoDB->fetchRow( $res ) ) {
-			$resultsRow = array();
+			$resultsRow = [];
 			foreach ( $this->mAliasedFieldNames as $alias => $fieldName ) {
 				$curValue = $row[$alias];
 				if ( $curValue instanceof DateTime ) {
@@ -1568,13 +1575,13 @@ class CargoSQLQuery {
 	function addTablePrefixes( $string ) {
 		// Create arrays for doing replacements of table names within
 		// the SQL by their "real" equivalents.
-		$tableNamePatterns = array();
+		$tableNamePatterns = [];
 		foreach ( $this->mAliasedTableNames as $tableName ) {
 			$tableNamePatterns[] = CargoUtils::getSQLTablePattern( $tableName );
 		}
 
 		return preg_replace_callback( $tableNamePatterns,
-			array( $this, 'addQuotes' ), $string );
+			[ $this, 'addQuotes' ], $string );
 	}
 
 	private function addQuotes( $matches ) {

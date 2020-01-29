@@ -11,10 +11,11 @@
 class CargoDynamicTableFormat extends CargoDisplayFormat {
 
 	public static function allowedParameters() {
-		return array(
-			'rows per page' => array( 'type' => 'int' ),
-			'hidden fields' => array( 'type' => 'string' )
-		);
+		return [
+			'rows per page' => [ 'type' => 'int' ],
+			'details fields' => [ 'type' => 'string' ],
+			'hidden fields' => [ 'type' => 'string' ]
+		];
 	}
 
 	/**
@@ -28,14 +29,14 @@ class CargoDynamicTableFormat extends CargoDisplayFormat {
 	function display( $valuesTable, $formattedValuesTable, $fieldDescriptions, $displayParams ) {
 		$this->mOutput->addModules( 'ext.cargo.datatables' );
 
-		$detailsFields = array();
+		$detailsFields = [];
 		$detailsFieldsString = '';
 		if ( array_key_exists( 'details fields', $displayParams ) ) {
 			$detailsFields = array_map( 'trim', explode( ',', $displayParams['details fields'] ) );
 			$detailsFieldsString = "data-details-fields=1";
 		}
 		// Special handlng for ordering.
-		$dataTableOrderByParams = array();
+		$dataTableOrderByParams = [];
 		if ( array_key_exists( 'order by', $displayParams ) ) {
 			$orderByClauses = explode( ',', $displayParams['order by'] );
 			foreach ( $orderByClauses as $orderByClause ) {
@@ -58,7 +59,7 @@ class CargoDynamicTableFormat extends CargoDisplayFormat {
 					}
 					$fieldName = strtolower( str_replace( ' ', '_', $fieldName ) );
 					if ( $orderByClause == $fieldName ) {
-						$dataTableOrderByParams[] = array( $i, $sortAscending ? 'asc' : 'desc' );
+						$dataTableOrderByParams[] = [ $i, $sortAscending ? 'asc' : 'desc' ];
 					}
 					$i++;
 				}
@@ -97,10 +98,10 @@ class CargoDynamicTableFormat extends CargoDisplayFormat {
 						if ( $matchFound++ > 0 ) {
 							$text .= ' - ';
 						}
-						$text .= Html::element( 'a', array(
+						$text .= Html::element( 'a', [
 							'class' => 'toggle-vis',
 							'data-column' => $fieldNum,
-						), $hiddenField );
+						], $hiddenField );
 						break;
 					}
 					$fieldNum++;
@@ -119,7 +120,7 @@ class CargoDynamicTableFormat extends CargoDisplayFormat {
 
 END;
 		if ( $detailsFields ) {
-			$text .= Html::rawElement( 'th', array( 'class' => 'details-control' ), null );
+			$text .= Html::rawElement( 'th', [ 'class' => 'details-control' ], null );
 		}
 		foreach ( $fieldDescriptions as $fieldName => $fieldDescription ) {
 			if ( in_array( $fieldName, $detailsFields ) ) {
@@ -142,7 +143,7 @@ END;
 END;
 
 		if ( $detailsFields ) {
-			$text .= Html::rawElement( 'th', array( 'class' => 'details-control' ), null );
+			$text .= Html::rawElement( 'th', [ 'class' => 'details-control' ], null );
 		}
 		foreach ( $fieldDescriptions as $fieldName => $fieldDescription ) {
 			if ( in_array( $fieldName, $detailsFields ) ) {
@@ -150,7 +151,7 @@ END;
 			}
 			if ( $searchableColumns ) {
 				$placeholder = wfMessage( 'cargo-dynamictables-searchcolumn', $fieldName )->parse();
-				$attribs = array( 'data-placeholder' => $placeholder );
+				$attribs = [ 'data-placeholder' => $placeholder ];
 			} else {
 				$attribs = null;
 			}
@@ -171,7 +172,7 @@ END;
 
 		foreach ( $formattedValuesTable as $rowNum => $row ) {
 			if ( $detailsFields ) {
-				$tableData = Html::rawElement( 'td', array( 'class' => 'details-control' ), null );
+				$tableData = Html::rawElement( 'td', [ 'class' => 'details-control' ], null );
 			} else {
 				$tableData = '';
 			}
@@ -183,7 +184,7 @@ END;
 				if ( array_key_exists( $field, $row ) ) {
 					$value = $row[$field];
 					if ( $fieldDescription->isDateOrDatetime() ) {
-						$attribs = array( 'data-order' => $valuesTable[$rowNum][$field] );
+						$attribs = [ 'data-order' => $valuesTable[$rowNum][$field] ];
 					}
 				}
 
@@ -196,10 +197,10 @@ END;
 				}
 			}
 			$detailsTable =
-				Html::rawElement( 'table', array( 'border' => '0', 'cellspacing' => '0' ),
+				Html::rawElement( 'table', [ 'border' => '0', 'cellspacing' => '0' ],
 					Html::rawElement( 'tbody', null, $details ) );
 
-			$text .= Html::rawElement( 'tr', array( 'data-details' => $detailsTable ),
+			$text .= Html::rawElement( 'tr', [ 'data-details' => $detailsTable ],
 				$tableData );
 		}
 

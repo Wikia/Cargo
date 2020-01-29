@@ -14,7 +14,7 @@ class CargoRecreateDataAPI extends ApiBase {
 
 	public function execute() {
 		if ( !$this->getUser()->isAllowed( 'recreatecargodata' ) || $this->getUser()->isBlocked() ) {
-			CargoUtils::dieWithError( $this, array( 'badaccess-groups' ) );
+			$this->dieWithError( $this, [ 'badaccess-groups' ] );
 		}
 
 		$params = $this->extractRequestParams();
@@ -30,14 +30,14 @@ class CargoRecreateDataAPI extends ApiBase {
 		}
 
 		// Create the jobs.
-		$jobParams = array(
+		$jobParams = [
 			'dbTableName' => $tableStr,
 			'replaceOldRows' => $params['replaceOldRows']
-		);
-		$jobs = array();
+		];
+		$jobs = [];
 		$templateTitle = Title::makeTitleSafe( NS_TEMPLATE, $templateStr );
-		$titlesWithThisTemplate = $templateTitle->getTemplateLinksTo( array(
-			'LIMIT' => 500, 'OFFSET' => $params['offset'] ) );
+		$titlesWithThisTemplate = $templateTitle->getTemplateLinksTo( [
+			'LIMIT' => 500, 'OFFSET' => $params['offset'] ] );
 		foreach ( $titlesWithThisTemplate as $titleWithThisTemplate ) {
 			$jobs[] = new CargoPopulateTableJob( $titleWithThisTemplate, $jobParams );
 		}
@@ -49,30 +49,30 @@ class CargoRecreateDataAPI extends ApiBase {
 	}
 
 	protected function getAllowedParams() {
-		return array(
-			'template' => array(
+		return [
+			'template' => [
 				ApiBase::PARAM_TYPE => 'string',
-			),
-			'table' => array(
+			],
+			'table' => [
 				ApiBase::PARAM_TYPE => 'string',
-			),
-			'offset' => array(
+			],
+			'offset' => [
 				ApiBase::PARAM_TYPE => 'integer',
 				ApiBase::PARAM_DFLT => 0,
-			),
-			'replaceOldRows' => array(
+			],
+			'replaceOldRows' => [
 				ApiBase::PARAM_TYPE => 'boolean',
-			),
-		);
+			],
+		];
 	}
 
 	protected function getParamDescription() {
-		return array(
+		return [
 			'template' => 'The template whose data to use',
 			'table' => 'The Cargo database table to repopulate',
 			'offset' => 'Of the pages that call this template, the number at which to start querying',
 			'replaceOldRows' => 'Whether to replace old rows for each page while repopulating the table',
-		);
+		];
 	}
 
 	protected function getDescription() {
@@ -81,9 +81,9 @@ class CargoRecreateDataAPI extends ApiBase {
 	}
 
 	protected function getExamples() {
-		return array(
+		return [
 			'api.php?action=cargorecreatedata&template=City&table=Cities'
-		);
+		];
 	}
 
 	public function mustBePosted() {

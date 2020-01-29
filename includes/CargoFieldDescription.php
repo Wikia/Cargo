@@ -10,7 +10,7 @@
 class CargoFieldDescription {
 	public $mType;
 	public $mSize;
-	public $mDependentOn = array();
+	public $mDependentOn = [];
 	public $mIsList = false;
 	private $mDelimiter;
 	public $mAllowedValues = null;
@@ -20,7 +20,7 @@ class CargoFieldDescription {
 	public $mIsHidden = false;
 	public $mIsHierarchy = false;
 	public $mHierarchyStructure = null;
-	public $mOtherParams = array();
+	public $mOtherParams = [];
 
 	/**
 	 * Initializes from a string within the #cargo_declare function.
@@ -32,7 +32,7 @@ class CargoFieldDescription {
 		$fieldDescription = new CargoFieldDescription();
 
 		if ( strpos( strtolower( $fieldDescriptionStr ), 'list' ) === 0 ) {
-			$matches = array();
+			$matches = [];
 			$foundMatch = preg_match( '/[Ll][Ii][Ss][Tt] \((.*)\) [Oo][Ff] (.*)/is', $fieldDescriptionStr, $matches );
 			if ( !$foundMatch ) {
 				// Return a true error message here?
@@ -44,7 +44,7 @@ class CargoFieldDescription {
 		}
 
 		// There may be additional parameters, in/ parentheses.
-		$matches = array();
+		$matches = [];
 		$foundMatch2 = preg_match( '/([^(]*)\s*\((.*)\)/s', $fieldDescriptionStr, $matches );
 		$allowedValuesParam = "";
 		if ( $foundMatch2 ) {
@@ -76,7 +76,7 @@ class CargoFieldDescription {
 				}
 			}
 			if ( $allowedValuesParam !== "" ) {
-				$allowedValuesArray = array();
+				$allowedValuesArray = [];
 				if ( $fieldDescription->mIsHierarchy == true ) {
 					// $paramValue contains "*" hierarchy structure
 					CargoUtils::validateHierarchyStructure( trim( $allowedValuesParam ) );
@@ -183,7 +183,21 @@ class CargoFieldDescription {
 	}
 
 	function isDateOrDatetime() {
-		return in_array( $this->mType, array( 'Date', 'Start date', 'End date', 'Datetime', 'Start datetime', 'End datetime' ) );
+		return in_array( $this->mType, [ 'Date', 'Start date', 'End date', 'Datetime', 'Start datetime', 'End datetime' ] );
+	}
+
+	function getFieldSize() {
+		if ( $this->isDateOrDatetime() ) {
+			return null;
+		} elseif ( in_array( $this->mType, [ 'Integer', 'Float', 'Rating', 'Boolean', 'Text', 'Wikitext', 'Searchtext' ] ) ) {
+			return null;
+		// This leavs String, Page, etc. - see CargoUtils::fieldTypeToSQLType().
+		} elseif ( $this->mSize != null ) {
+			return $this->mSize;
+		} else {
+			global $wgCargoDefaultStringBytes;
+			return $wgCargoDefaultStringBytes;
+		}
 	}
 
 	/**
@@ -191,7 +205,7 @@ class CargoFieldDescription {
 	 * @return array
 	 */
 	function toDBArray() {
-		$descriptionData = array();
+		$descriptionData = [];
 		$descriptionData['type'] = $this->mType;
 		if ( $this->mSize != null ) {
 			$descriptionData['size'] = $this->mSize;
@@ -230,4 +244,103 @@ class CargoFieldDescription {
 
 		return $descriptionData;
 	}
+
+	function prepareAndValidateValue( $fieldValue ) {
+		// @TODO - also set, and return, an error message and/or code
+		// if the returned value is different from the incoming value.
+		// @TODO - it might make sense to create a new class around
+		// this function, like "CargoFieldValue" -
+		// CargoStore::getDateValueAndPrecision() could move there too.
+		$fieldValue = trim( $fieldValue );
+		if ( $fieldValue == '' ) {
+			return [ 'value' => $fieldValue ];
+		}
+
+		$newValue = $precision = null;
+
+		$fieldType = $this->mType;
+		if ( $this->mAllowedValues != null ) {
+			$allowedValues = $this->mAllowedValues;
+			if ( $this->mIsList ) {
+				$delimiter = $this->getDelimiter();
+				$individualValues = explode( $delimiter, $fieldValue );
+				$valuesToBeKept = [];
+				foreach ( $individualValues as $individualValue ) {
+					$realIndividualVal = trim( $individualValue );
+					if ( in_array( $realIndividualVal, $allowedValues ) ) {
+						$valuesToBeKept[] = $realIndividualVal;
+					}
+				}
+				$newValue = implode( $delimiter, $valuesToBeKept );
+			} else {
+				if ( in_array( $fieldValue, $allowedValues ) ) {
+					$newValue = $fieldValue;
+				}
+			}
+		}
+
+		if ( $this->isDateOrDatetime() ) {
+			if ( $this->mIsList ) {
+				$delimiter = $this->getDelimiter();
+				$individualValues = explode( $delimiter, $fieldValue );
+				// There's unfortunately only one precision
+				// value per field, even if it holds more than
+				// one date - store the most "precise" of the
+				// precision values.
+				$maxPrecision = CargoStore::YEAR_ONLY;
+				$dateValues = [];
+				foreach ( $individualValues as $individualValue ) {
+					$realIndividualVal = trim( $individualValue );
+					if ( $realIndividualVal == '' ) {
+						continue;
+					}
+					list( $dateValue, $curPrecision ) = CargoStore::getDateValueAndPrecision( $realIndividualVal, $fieldType );
+					$dateValues[] = $dateValue;
+					if ( $curPrecision < $maxPrecision ) {
+						$maxPrecision = $curPrecision;
+					}
+				}
+				$newValue = implode( $delimiter, $dateValues );
+				$precision = $maxPrecision;
+			} else {
+				list( $newValue, $precision ) = CargoStore::getDateValueAndPrecision( $fieldValue, $fieldType );
+			}
+		} elseif ( $fieldType == 'Integer' ) {
+			// Remove digit-grouping character.
+			global $wgCargoDigitGroupingCharacter;
+			$newValue = str_replace( $wgCargoDigitGroupingCharacter, '', $fieldValue );
+			if ( !is_int( $newValue ) ) {
+				$newValue = round( $newValue );
+			}
+		} elseif ( $fieldType == 'Float' || $fieldType == 'Rating' ) {
+			// Remove digit-grouping character, and change
+			// decimal mark to '.' if it's anything else.
+			global $wgCargoDigitGroupingCharacter;
+			global $wgCargoDecimalMark;
+			$newValue = str_replace( $wgCargoDigitGroupingCharacter, '', $fieldValue );
+			$newValue = str_replace( $wgCargoDecimalMark, '.', $newValue );
+		} elseif ( $fieldType == 'Boolean' ) {
+			// True = 1, "yes"
+			// False = 0, "no"
+			$msgForNo = wfMessage( 'htmlform-no' )->text();
+			if ( $fieldValue === 0
+				|| $fieldValue === '0'
+				|| strtolower( $fieldValue ) === 'no'
+				|| strtolower( $fieldValue ) == strtolower( $msgForNo ) ) {
+				$newValue = '0';
+			} else {
+				$newValue = '1';
+			}
+		} else {
+			$newValue = $fieldValue;
+		}
+
+		$valueArray = [ 'value' => $newValue ];
+		if ( $precision !== null ) {
+			$valueArray['precision'] = $precision;
+		}
+
+		return $valueArray;
+	}
+
 }

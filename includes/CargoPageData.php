@@ -18,34 +18,34 @@ class CargoPageData {
 	static function getTableSchema() {
 		global $wgCargoPageDataColumns;
 
-		$fieldTypes = array();
+		$fieldTypes = [];
 
 		// @TODO - change this code to match the approach taken in
 		// CargoFileData.php. This will be more important if/when
 		// some additional parameter is added, like 'hidden'.
 		if ( in_array( 'creationDate', $wgCargoPageDataColumns ) ) {
-			$fieldTypes['_creationDate'] = array( 'Datetime', false );
+			$fieldTypes['_creationDate'] = [ 'Datetime', false ];
 		}
 		if ( in_array( 'modificationDate', $wgCargoPageDataColumns ) ) {
-			$fieldTypes['_modificationDate'] = array( 'Datetime', false );
+			$fieldTypes['_modificationDate'] = [ 'Datetime', false ];
 		}
 		if ( in_array( 'creator', $wgCargoPageDataColumns ) ) {
-			$fieldTypes['_creator'] = array( 'String', false );
+			$fieldTypes['_creator'] = [ 'String', false ];
 		}
 		if ( in_array( 'fullText', $wgCargoPageDataColumns ) ) {
-			$fieldTypes['_fullText'] = array( 'Searchtext', false );
+			$fieldTypes['_fullText'] = [ 'Searchtext', false ];
 		}
 		if ( in_array( 'categories', $wgCargoPageDataColumns ) ) {
-			$fieldTypes['_categories'] = array( 'String', true );
+			$fieldTypes['_categories'] = [ 'String', true ];
 		}
 		if ( in_array( 'numRevisions', $wgCargoPageDataColumns ) ) {
-			$fieldTypes['_numRevisions'] = array( 'Integer', false );
+			$fieldTypes['_numRevisions'] = [ 'Integer', false ];
 		}
 		if ( in_array( 'isRedirect', $wgCargoPageDataColumns ) ) {
-			$fieldTypes['_isRedirect'] = array( 'Boolean', false );
+			$fieldTypes['_isRedirect'] = [ 'Boolean', false ];
 		}
 		if ( in_array( 'pageNameOrRedirect', $wgCargoPageDataColumns ) ) {
-			$fieldTypes['_pageNameOrRedirect'] = array( 'String', false );
+			$fieldTypes['_pageNameOrRedirect'] = [ 'String', false ];
 		}
 
 		$tableSchema = new CargoTableSchema();
@@ -69,7 +69,7 @@ class CargoPageData {
 	 * that setting doesn't seem to take effect soon enough to get parsed
 	 * as a blank page.
 	 */
-	public static function storeValuesForPage( $title, $createReplacement, $setToBlank = false ) {
+	public static function storeValuesForPage( $title, $createReplacement, $storeCategories, $setToBlank = false ) {
 		global $wgCargoPageDataColumns;
 
 		if ( $title == null ) {
@@ -81,13 +81,13 @@ class CargoPageData {
 		// If this table does not exist, getTableSchemas() will
 		// throw an error.
 		try {
-			$tableSchemas = CargoUtils::getTableSchemas( array( $pageDataTable ) );
+			$tableSchemas = CargoUtils::getTableSchemas( [ $pageDataTable ] );
 		} catch ( MWException $e ) {
 			return;
 		}
 
 		$wikiPage = WikiPage::factory( $title );
-		$pageDataValues = array();
+		$pageDataValues = [];
 
 		if ( in_array( 'creationDate', $wgCargoPageDataColumns ) ) {
 			$firstRevision = $title->getFirstRevision();
@@ -112,14 +112,14 @@ class CargoPageData {
 				$pageDataValues['_fullText'] = ContentHandler::getContentText( $page->getContent() );
 			}
 		}
-		if ( in_array( 'categories', $wgCargoPageDataColumns ) ) {
-			$pageCategories = array();
+		if ( $storeCategories && in_array( 'categories', $wgCargoPageDataColumns ) ) {
+			$pageCategories = [];
 			if ( !$setToBlank ) {
 				$dbr = wfGetDB( DB_REPLICA );
 				$res = $dbr->select(
 					'categorylinks',
 					'cl_to',
-					array( 'cl_from' => $title->getArticleID() ),
+					[ 'cl_from' => $title->getArticleID() ],
 					__METHOD__
 				);
 				foreach ( $res as $row ) {
@@ -135,7 +135,7 @@ class CargoPageData {
 			$res = $dbr->select(
 				'revision',
 				'COUNT(*) as total',
-				array( 'rev_page' => $title->getArticleID() ),
+				[ 'rev_page' => $title->getArticleID() ],
 				__METHOD__
 			);
 			$row = $dbr->fetchRow( $res );
@@ -154,7 +154,16 @@ class CargoPageData {
 			}
 		}
 
-		CargoStore::storeAllData( $title, $pageDataTable, $pageDataValues, $tableSchemas[$pageDataTable] );
+		$pageDataSchema = $tableSchemas[$pageDataTable];
+		// If this is being called as a result of a page save, we
+		// don't handle the '_categories' field, because categories
+		// often don't get set until after the page has been saved,
+		// due to jobs. Instead there are separate hooks to handle it.
+		if ( !$storeCategories ) {
+			$pageDataSchema->removeField( '_categories' );
+		}
+
+		CargoStore::storeAllData( $title, $pageDataTable, $pageDataValues, $pageDataSchema );
 	}
 
 }
