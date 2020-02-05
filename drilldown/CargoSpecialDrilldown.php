@@ -1,7 +1,4 @@
 <?php
-
-use MediaWiki\MediaWikiServices;
-
 /**
  * Displays an interface to let the user drill down through all Cargo data.
  *
@@ -32,8 +29,8 @@ class CargoDrilldown extends IncludableSpecialPage {
 		$title = $this->getPageTitle();
 
 		if ( $this->including() ) {
-			$parser = MediaWikiServices::getInstance()->getParser();
-			$parser->getOutput()->updateCacheExpiry( 0 );
+			global $wgParser;
+			$wgParser->disableCache();
 		}
 		$this->setHeaders();
 		$out->addModules( 'ext.cargo.drilldown' );
@@ -1740,7 +1737,8 @@ END;
 					$key_string =
 						str_replace( ' ', '_', $af->filter->tableAlias . '.' . $af->filter->name );
 				}
-				$params[$key_string] = $af->values[0]->text;
+				$value_string = str_replace( ' ', '_', $af->values[0]->text );
+				$params[$key_string] = $value_string;
 			} else {
 				// @HACK - QueryPage's pagination-URL code,
 				// which uses wfArrayToCGI(), doesn't support
@@ -1754,7 +1752,8 @@ END;
 						$key_string = str_replace( ' ', '_',
 							$af->filter->tableAlias . '.' . $af->filter->name . "[$i]" );
 					}
-					$params[$key_string] = $value->text;
+					$value_string = str_replace( ' ', '_', $value->text );
+					$params[$key_string] = $value_string;
 				}
 			}
 		}
@@ -1945,7 +1944,7 @@ END;
 			}
 			if ( $af->filter->fieldDescription->mIsHierarchy && $af->filter->fieldDescription->mIsList ) {
 				$hierarchyFieldTable = $this->tableName . "__" . $af->filter->name;
-				$hierarchyFieldAlias = $this->tableAlias . "__" . $af->filter->name;
+				$hierarchyFieldAlias = $this->tableAlias . "__" . $af->filter->Alias;
 				$queryOptions['GROUP BY'] = CargoUtils::escapedFieldName( $cdb,
 					array( $hierarchyFieldAlias => $hierarchyFieldTable ), '_rowID' );
 			}
@@ -2180,12 +2179,8 @@ END;
 			}
 		}
 		if ( !$this->formatByFieldIsList ) {
-			if ( is_array( $queryOptions['GROUP BY'] ) ) {
-				$queryOptions['GROUP BY'] =
-					array_merge( $queryOptions['GROUP BY'], array_values( $aliasedFieldNames ) );
-			} else {
-				$queryOptions['GROUP BY'] = array_values( $aliasedFieldNames );
-			}
+			$queryOptions['GROUP BY'] =
+				array_merge( $queryOptions['GROUP BY'], array_values( $aliasedFieldNames ) );
 		} else {
 			$queryOptions['GROUP BY'] = null;
 		}

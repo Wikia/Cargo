@@ -69,7 +69,7 @@ class CargoPageData {
 	 * that setting doesn't seem to take effect soon enough to get parsed
 	 * as a blank page.
 	 */
-	public static function storeValuesForPage( $title, $createReplacement, $storeCategories, $setToBlank = false ) {
+	public static function storeValuesForPage( $title, $createReplacement, $setToBlank = false ) {
 		global $wgCargoPageDataColumns;
 
 		if ( $title == null ) {
@@ -112,7 +112,7 @@ class CargoPageData {
 				$pageDataValues['_fullText'] = ContentHandler::getContentText( $page->getContent() );
 			}
 		}
-		if ( $storeCategories && in_array( 'categories', $wgCargoPageDataColumns ) ) {
+		if ( in_array( 'categories', $wgCargoPageDataColumns ) ) {
 			$pageCategories = array();
 			if ( !$setToBlank ) {
 				$dbr = wfGetDB( DB_REPLICA );
@@ -154,16 +154,7 @@ class CargoPageData {
 			}
 		}
 
-		$pageDataSchema = $tableSchemas[$pageDataTable];
-		// If this is being called as a result of a page save, we
-		// don't handle the '_categories' field, because categories
-		// often don't get set until after the page has been saved,
-		// due to jobs. Instead there are separate hooks to handle it.
-		if ( ! $storeCategories ) {
-			$pageDataSchema->removeField( '_categories' );
-		}
-
-		CargoStore::storeAllData( $title, $pageDataTable, $pageDataValues, $pageDataSchema );
+		CargoStore::storeAllData( $title, $pageDataTable, $pageDataValues, $tableSchemas[$pageDataTable] );
 	}
 
 }

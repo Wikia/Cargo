@@ -13,10 +13,8 @@ class CargoRecreateDataAPI extends ApiBase {
 	}
 
 	public function execute() {
-		$user = $this->getUser();
-
-		if ( !$user->isAllowed( 'recreatecargodata' ) || $user->isBlocked() ) {
-			$this->dieWithError( array( 'badaccess-groups' ) );
+		if ( !$this->getUser()->isAllowed( 'recreatecargodata' ) || $this->getUser()->isBlocked() ) {
+			CargoUtils::dieWithError( $this, array( 'badaccess-groups' ) );
 		}
 
 		$params = $this->extractRequestParams();
@@ -24,11 +22,11 @@ class CargoRecreateDataAPI extends ApiBase {
 		$tableStr = $params['table'];
 
 		if ( $templateStr == '' ) {
-			$this->dieWithError( 'The template must be specified', 'param_substr' );
+			CargoUtils::dieWithError( $this, 'The template must be specified', 'param_substr' );
 		}
 
 		if ( $tableStr == '' ) {
-			$this->dieWithError( 'The table must be specified', 'param_substr' );
+			CargoUtils::dieWithError( $this, 'The table must be specified', 'param_substr' );
 		}
 
 		// Create the jobs.

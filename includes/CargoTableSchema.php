@@ -32,9 +32,4 @@ class CargoTableSchema {
 		}
 		return serialize( $tableSchemaDBArray );
 	}
-
-	public function removeField( $fieldName ) {
-		unset( $this->mFieldDescriptions[$fieldName] );
-	}
-
 }

@@ -9,9 +9,7 @@ class CargoPieChartFormat extends CargoDeferredFormat {
 	public static function allowedParameters() {
 		return array(
 			'height' => array( 'type' => 'int', 'label' => wfMessage( 'cargo-viewdata-heightparam' )->parse() ),
-			'width' => array( 'type' => 'int', 'label' => wfMessage( 'cargo-viewdata-widthparam' )->parse() ),
-			'colors' => array( 'type' => 'string', 'label' => wfMessage( 'cargo-viewdata-colorsparam' )->parse() ),
-			'hide legend' => array( 'type' => 'boolean', 'label' => wfMessage( 'cargo-viewdata-hidelegendparam' )->parse() )
+			'width' => array( 'type' => 'int', 'label' => wfMessage( 'cargo-viewdata-widthparam' )->parse() )
 		);
 	}
 
@@ -37,7 +35,7 @@ class CargoPieChartFormat extends CargoDeferredFormat {
 			}
 			$svgAttrs['width'] = $width;
 		} else {
-			$svgAttrs['width'] = '700px';
+			$svgAttrs['width'] = "100%";
 		}
 		if ( array_key_exists( 'height', $displayParams ) && $displayParams['height'] != '' ) {
 			$height = $displayParams['height'];
@@ -47,7 +45,8 @@ class CargoPieChartFormat extends CargoDeferredFormat {
 			}
 			$svgAttrs['height'] = $height;
 		} else {
-			$svgAttrs['height'] = '400px';
+			// Stub value, so that we know to replace it.
+			$svgAttrs['height'] = '1px';
 		}
 
 		$svgText = Html::element( 'svg', $svgAttrs, '' );
@@ -56,12 +55,6 @@ class CargoPieChartFormat extends CargoDeferredFormat {
 			'class' => 'cargoPieChart',
 			'dataurl' => $ce->getFullURL( $queryParams ),
 		);
-		if ( array_key_exists( 'colors', $displayParams ) && $displayParams['colors'] != '' ) {
-			$divAttrs['data-colors'] = json_encode( explode( ',', $displayParams['colors'] ) );
-		}
-		if ( array_key_exists( 'hide legend', $displayParams ) ) {
-			$divAttrs['data-hide-legend'] = ( $displayParams['hide legend'] == 'yes' ) ? 1 : 0;
-		}
 		$text = Html::rawElement( 'div', $divAttrs, $svgText );
 
 		return $text;
