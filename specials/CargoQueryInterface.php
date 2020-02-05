@@ -245,11 +245,9 @@ class CargoQueryPage extends QueryPage {
 		$orderByStr = "";
 		$orderByValues = $req->getArray( 'order_by' );
 		$orderByOptions = $req->getArray( 'order_by_options' );
-		if ( is_array( $orderByValues ) ) {
-			foreach ( $orderByValues as $i => $curOrderBy ) {
-				if ( $curOrderBy != '' ) {
-					$orderByStr .= $curOrderBy . ' ' . $orderByOptions[$i] . ',';
-				}
+		foreach ( $orderByValues as $i => $curOrderBy ) {
+			if ( $curOrderBy != '' ) {
+				$orderByStr .= $curOrderBy . ' ' . $orderByOptions[$i] . ',';
 			}
 		}
 		if ( substr( $orderByStr, -1, 1 ) == ',' ) {
@@ -312,11 +310,17 @@ class CargoQueryPage extends QueryPage {
 		// "order by" is handled elsewhere, in getOrderFields().
 
 		// Field aliases need to have quotes placed around them
-		// before running the query.
+		// before running the query - though, starting in
+		// MW 1.27 (specifically, with
+		// https://gerrit.wikimedia.org/r/#/c/286489/),
+		// the quotes get added automatically.
 		$cdb = CargoUtils::getDB();
 		$aliasedFieldNames = array();
 		foreach ( $this->sqlQuery->mAliasedFieldNames as $alias => $fieldName ) {
 			foreach ( $this->sqlQuery->mAliasedFieldNames as $alias => $fieldName ) {
+				if ( version_compare( $GLOBALS['wgVersion'], '1.27', '<' ) ) {
+					$alias = '"' . $alias . '"';
+				}
 				// If it's really a field name, add quotes around it.
 				if ( strpos( $fieldName, '(' ) === false && strpos( $fieldName, '.' ) === false &&
 					!$cdb->isQuotedIdentifier( $fieldName ) && !CargoUtils::isSQLStringLiteral( $fieldName ) ) {

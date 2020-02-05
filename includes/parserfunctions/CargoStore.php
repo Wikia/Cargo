@@ -165,16 +165,10 @@ class CargoStore {
 					}
 				}
 				if ( $numExistingValues > 0 ) {
-					if ( $fieldDescription->mIsMandatory ) {
-						return "Cannot store mandatory field \"$fieldName\" as it contains a duplicate value.";
-					}
 					$tableFieldValues[$fieldName] = null;
 				}
 			}
 			if ( $fieldDescription->mRegex != null && !preg_match( '/^' . $fieldDescription->mRegex . '$/', $fieldValue ) ) {
-				if ( $fieldDescription->mIsMandatory ) {
-					return "Cannot store mandatory field \"$fieldName\" as the value does not match the field's regex constraint.";
-				}
 				$tableFieldValues[$fieldName] = null;
 			}
 		}
@@ -248,6 +242,10 @@ class CargoStore {
 		$pageTitle = $title->getText();
 		$pageNamespace = $title->getNamespace();
 
+		// We're still here! Let's add to the DB table(s).
+		// First, though, let's do some processing:
+		// - remove invalid values, if any
+		// - put dates and numbers into correct format
 		foreach ( $tableSchema->mFieldDescriptions as $fieldName => $fieldDescription ) {
 			// If it's null or not set, skip this value.
 			if ( !array_key_exists( $fieldName, $tableFieldValues ) ) {
@@ -258,10 +256,87 @@ class CargoStore {
 				continue;
 			}
 
-			$valueArray = $fieldDescription->prepareAndValidateValue( $curValue );
-			$tableFieldValues[$fieldName] = $valueArray['value'];
-			if ( array_key_exists( 'precision', $valueArray ) ) {
-				$tableFieldValues[$fieldName . '__precision'] = $valueArray['precision'];
+			// Change from the format stored in the DB to the
+			// "real" one.
+			$fieldType = $fieldDescription->mType;
+			if ( $fieldDescription->mAllowedValues != null ) {
+				$allowedValues = $fieldDescription->mAllowedValues;
+				if ( $fieldDescription->mIsList ) {
+					$delimiter = $fieldDescription->getDelimiter();
+					$individualValues = explode( $delimiter, $curValue );
+					$valuesToBeKept = array();
+					foreach ( $individualValues as $individualValue ) {
+						$realIndividualVal = trim( $individualValue );
+						if ( in_array( $realIndividualVal, $allowedValues ) ) {
+							$valuesToBeKept[] = $realIndividualVal;
+						}
+					}
+					$tableFieldValues[$fieldName] = implode( $delimiter, $valuesToBeKept );
+				} else {
+					if ( !in_array( $curValue, $allowedValues ) ) {
+						$tableFieldValues[$fieldName] = null;
+					}
+				}
+			}
+			if ( $fieldType == 'Date' || $fieldType == 'Datetime' || $fieldType == 'Start date' ||
+				 $fieldType == 'Start datetime' || $fieldType == 'End date' || $fieldType == 'End datetime' ) {
+				if ( $curValue == '' ) {
+					continue;
+				}
+				if ( $fieldDescription->mIsList ) {
+					$delimiter = $fieldDescription->getDelimiter();
+					$individualValues = explode( $delimiter, $curValue );
+					// There's unfortunately only one
+					// precision value per field, even if it
+					// holds more than one date - store the
+					// most "precise" of the precision
+					// values.
+					$maxPrecision = self::YEAR_ONLY;
+					$dateValues = array();
+					foreach ( $individualValues as $individualValue ) {
+						$realIndividualVal = trim( $individualValue );
+						if ( $realIndividualVal == '' ) {
+							continue;
+						}
+						list( $dateValue, $precision ) = self::getDateValueAndPrecision( $realIndividualVal, $fieldType );
+						$dateValues[] = $dateValue;
+						if ( $precision < $maxPrecision ) {
+							$maxPrecision = $precision;
+						}
+					}
+					$tableFieldValues[$fieldName] = implode( $delimiter, $dateValues );
+					$tableFieldValues[$fieldName . '__precision'] = $maxPrecision;
+				} else {
+					list( $dateValue, $precision ) = self::getDateValueAndPrecision( $curValue, $fieldType );
+					$tableFieldValues[$fieldName] = $dateValue;
+					$tableFieldValues[$fieldName . '__precision'] = $precision;
+				}
+			} elseif ( $fieldType == 'Integer' ) {
+				// Remove digit-grouping character.
+				global $wgCargoDigitGroupingCharacter;
+				$tableFieldValues[$fieldName] = str_replace( $wgCargoDigitGroupingCharacter, '', $curValue );
+			} elseif ( $fieldType == 'Float' || $fieldType == 'Rating' ) {
+				// Remove digit-grouping character, and change
+				// decimal mark to '.' if it's anything else.
+				global $wgCargoDigitGroupingCharacter;
+				global $wgCargoDecimalMark;
+				$curValue = str_replace( $wgCargoDigitGroupingCharacter, '', $curValue );
+				$curValue = str_replace( $wgCargoDecimalMark, '.', $curValue );
+				$tableFieldValues[$fieldName] = $curValue;
+			} elseif ( $fieldType == 'Boolean' ) {
+				// True = 1, "yes"
+				// False = 0, "no"
+				$msgForNo = wfMessage( 'htmlform-no' )->text();
+				if ( $curValue === '' || $curValue === null ) {
+					// Do nothing.
+				} elseif ( $curValue === 0
+					|| $curValue === '0'
+					|| strtolower( $curValue ) === 'no'
+					|| strtolower( $curValue ) == strtolower( $msgForNo ) ) {
+					$tableFieldValues[$fieldName] = '0';
+				} else {
+					$tableFieldValues[$fieldName] = '1';
+				}
 			}
 		}
 
@@ -456,8 +531,8 @@ class CargoStore {
 	}
 
 	/**
-	 * Determines whether a row with the specified set of values already
-	 * exists in the specified Cargo table.
+	 * Determines whether a row with the specified set of values already exists in the
+	 * specified Cargo table.
 	 */
 	public static function doesRowAlreadyExist( $cdb, $title, $tableName, $tableFieldValues, $tableSchema ) {
 		$pageID = $title->getArticleID();
@@ -471,34 +546,7 @@ class CargoStore {
 			} else {
 				$quotedFieldName = $cdb->addIdentifierQuotes( $fieldName );
 			}
-			$fieldValue = $tableFieldValues[$fieldName];
-
-			if ( in_array( $fieldDescription->mType, array( 'Text', 'Wikitext', 'Searchtext' ) ) ) {
-				// @HACK - for some reason, there are times
-				// when, for long values, the check only works
-				// if there's some kind of limit in place.
-				// Rather than delve into that, we'll just
-				// make sure to only check a (relatively large)
-				// substring - which should be good enough.
-				$fieldSize = 1000;
-			} else {
-				$fieldSize = $fieldDescription->getFieldSize();
-			}
-
-			if ( $fieldValue == '' ) {
-				// Needed for correct SQL handling of blank values, for some reason.
-				$fieldValue = null;
-			} elseif ( $fieldSize != null && strlen( $fieldValue ) > $fieldSize ) {
-				// In theory, this SUBSTR() call is not needed,
-				// since the value stored in the DB won't be
-				// greater than this size. But that's not
-				// always true - there's the hack mentioned
-				// above, plus some other cases.
-				$quotedFieldName = "SUBSTR($quotedFieldName, 1, $fieldSize)";
-				$fieldValue = substr( $fieldValue, 0, $fieldSize );
-			}
-
-			$tableFieldValuesForCheck[$quotedFieldName] = $fieldValue;
+			$tableFieldValuesForCheck[$quotedFieldName] = $tableFieldValues[$fieldName];
 		}
 		$res = $cdb->select( $tableName, 'COUNT(*)', $tableFieldValuesForCheck );
 		$row = $cdb->fetchRow( $res );

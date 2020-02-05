@@ -1,8 +1,7 @@
 {
 	"@metadata": {
 		"authors": [
-			"Shaleych",
-			"Katunchik"
+			"Shaleych"
 		]
 	},
 	"apihelp-cargoquery-description": "Запускает запрос по данным Cargo.",
@@ -35,8 +34,5 @@
 	"apihelp-cargoautocomplete-param-field_is_array": "Содержит ли поле список значений",
 	"apihelp-cargoautocomplete-param-where": "Утверждение «where» для этого запроса, на основе других заданных фильтров",
 	"apihelp-cargoqueryautocomplete-param-limit": "Ограничение на количество выводимых результатов",
-	"apihelp-cargoqueryautocomplete-param-search": "Поиск подстроки",
-	"apihelp-cargoformatparams-description": "Возвращает набор параметров отображения для каждого запроса в формате Cargo.",
-	"apihelp-cargoformatparams-summary": "Возвращает набор параметров отображения для каждого запроса в формате Cargo.",
-	"apihelp-cargoformatparams-param-queryformat": "Формат запроса Cargo"
+	"apihelp-cargoqueryautocomplete-param-search": "Поиск подстроки"
 }

@@ -29,10 +29,19 @@ class CargoAutocompleteAPI extends ApiBase {
 
 		// If we got back an error message, exit with that message.
 		if ( !is_array( $data ) ) {
-			if ( !$data instanceof Message ) {
-				$data = ApiMessage::create( new RawMessage( '$1', array( $data ) ), 'unknownerror' );
+			if ( is_callable( array( $this, 'dieWithError' ) ) ) {
+				if ( !$data instanceof Message ) {
+					$data = ApiMessage::create( new RawMessage( '$1', [ $data ] ), 'unknownerror' );
+				}
+				$this->dieWithError( $data );
+			} else {
+				$code = 'unknownerror';
+				if ( $data instanceof Message ) {
+					$code = $data instanceof IApiMessage ? $data->getApiCode() : $data->getKey();
+					$data = $data->inLanguage( 'en' )->useDatabase( false )->text();
+				}
+				$this->dieUsage( $data, $code );
 			}
-			$this->dieWithError( $data );
 		}
 
 		// Set top-level elements.

@@ -13,16 +13,14 @@ class CargoRecreateTablesAPI extends ApiBase {
 	}
 
 	public function execute() {
-		$user = $this->getUser();
-
-		if ( !$user->isAllowed( 'recreatecargodata' ) || $user->isBlocked() ) {
-			$this->dieWithError( array( 'badaccess-groups' ) );
+		if ( !$this->getUser()->isAllowed( 'recreatecargodata' ) || $this->getUser()->isBlocked() ) {
+			CargoUtils::dieWithError( $this, array( 'badaccess-groups' ) );
 		}
 
 		$params = $this->extractRequestParams();
 		$templateStr = $params['template'];
 		if ( $templateStr == '' ) {
-			$this->dieWithError( 'The template must be specified', 'param_substr' );
+			CargoUtils::dieWithError( $this, 'The template must be specified', 'param_substr' );
 		}
 		$createReplacement = $params['createReplacement'];
 
