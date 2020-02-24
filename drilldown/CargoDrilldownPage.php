@@ -1719,7 +1719,7 @@ END;
 							$field = $fieldParts[1];
 						}
 					}
-					if ( $this->format == 'map' || $this->format == 'openlayers' || $this->format == 'googlemaps' ) {
+					if ( ( $this->format == 'map' || $this->format == 'openlayers' || $this->format == 'googlemaps' ) && $field == 'Coordinates' ) {
 						foreach ( $this->coordsFields as $tableAlias => $coordsField ) {
 							if ( !$coordsFieldFound && $coordsField == $field && $tableAlias == $fieldPartTableAlias ) {
 								$coordsFieldFound = true;
