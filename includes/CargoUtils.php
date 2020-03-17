@@ -16,7 +16,6 @@ class CargoUtils {
 	static $CargoDB = null;
 
 	/**
-	 *
 	 * @global string $wgDBuser
 	 * @global string $wgDBpassword
 	 * @global string $wgCargoDBserver
@@ -1161,7 +1160,6 @@ class CargoUtils {
 	}
 
 	/**
-	 *
 	 * @param LinkRenderer|null $linkRenderer
 	 * @param LinkTarget|Title $title
 	 * @param string|null $msg Must already be HTML escaped
