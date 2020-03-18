@@ -566,6 +566,13 @@ class CargoUtils {
 			$tableName = self::getPageProp( $templatePageID, 'CargoTableName' );
 		}
 
+		$parentTablesStr = self::getPageProp( $templatePageID, 'CargoParentTables' );
+		if ( $parentTablesStr ) {
+			$parentTables = unserialize( $parentTablesStr );
+		} else {
+			$parentTables = [];
+		}
+
 		$dbw = wfGetDB( DB_MASTER );
 		$cdb = self::getDB();
 
@@ -611,7 +618,7 @@ class CargoUtils {
 			$dbw->delete( 'cargo_tables', [ 'template_id' => $templatePageID ] );
 		}
 
-		self::createCargoTableOrTables( $cdb, $dbw, $tableName, $tableSchema, $tableSchemaString, $templatePageID );
+		self::createCargoTableOrTables( $cdb, $dbw, $tableName, $tableSchema, $tableSchemaString, $parentTables, $templatePageID );
 
 		if ( !$createReplacement ) {
 			// Log this.
@@ -741,8 +748,8 @@ class CargoUtils {
 		}
 	}
 
-	public static function createCargoTableOrTables( $cdb, $dbw, $tableName, $tableSchema, $tableSchemaString, $templatePageID ) {
-		$cdb->startAtomic( __METHOD__ );
+	public static function createCargoTableOrTables( $cdb, $dbw, $tableName, $tableSchema, $tableSchemaString, $parentTables, $templatePageID ) {
+		$cdb->startAtomic();
 		$cdbTableName = $cdb->addIdentifierQuotes( $cdb->tableName( $tableName, 'plain' ) );
 		$fieldsInMainTable = [
 			'_ID' => 'Integer',
@@ -785,7 +792,7 @@ class CargoUtils {
 			}
 		}
 
-		self::createTable( $cdb, $tableName, $fieldsInMainTable );
+		self::createTable( $cdb, $tableName, $fieldsInMainTable, false, $parentTables );
 
 		// Now also create tables for each of the 'list' fields,
 		// if there are any.
@@ -808,7 +815,15 @@ class CargoUtils {
 					$fieldsInTable['_value'] = $fieldType;
 				}
 				$fieldsInTable['_position'] = 'Integer';
-				self::createTable( $cdb, $fieldTableName, $fieldsInTable );
+				$parentTables = [
+					'mainTable' => [
+						'Name' => $tableName,
+						'_localField' => '_rowID',
+						'_remoteField' => '_ID'
+					]
+				];
+
+				self::createTable( $cdb, $fieldTableName, $fieldsInTable, false, $parentTables );
 				$fieldTableNames[] = $fieldTableName;
 			}
 			if ( $fieldDescription->mIsHierarchy ) {
@@ -859,7 +874,7 @@ class CargoUtils {
 		] );
 	}
 
-	public static function createTable( $cdb, $tableName, $fieldsInTable, $multipleColumnIndex = false ) {
+	public static function createTable( $cdb, $tableName, $fieldsInTable, $multipleColumnIndex = false, $parentTables = [] ) {
 		global $wgCargoDBRowFormat;
 
 		// Unfortunately, there is not yet a 'CREATE TABLE' wrapper
@@ -903,6 +918,15 @@ class CargoUtils {
 				$createSQL .= ", FULLTEXT KEY $fieldName ( $sqlFieldName )";
 			}
 		}
+
+		// Create a "foreign key" for each parent table.
+		foreach ( $parentTables as $alias => $parentTableInfo ) {
+			$localField = $parentTableInfo['_localField'];
+			$remoteField = $parentTableInfo['_remoteField'];
+			$remoteTable = $parentTableInfo['Name'];
+			$createSQL .= ", FOREIGN KEY ($localField) REFERENCES $remoteTable($remoteField)";
+		}
+
 		$createSQL .= ' )';
 		// For MySQL 5.6 and earlier, only MyISAM supports 'FULLTEXT'
 		// indexes; InnoDB does not.
