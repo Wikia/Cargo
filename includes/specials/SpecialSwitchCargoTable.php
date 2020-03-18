@@ -80,6 +80,8 @@ class SpecialSwitchCargoTable extends UnlistedSpecialPage {
 	}
 
 	function execute( $subpage ) {
+		$this->checkPermissions();
+
 		$out = $this->getOutput();
 		$req = $this->getRequest();
 		$tableName = $subpage;

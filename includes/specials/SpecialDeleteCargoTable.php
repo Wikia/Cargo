@@ -49,6 +49,8 @@ class SpecialDeleteCargoTable extends UnlistedSpecialPage {
 	}
 
 	function execute( $subpage ) {
+		$this->checkPermissions();
+
 		$out = $this->getOutput();
 		$req = $this->getRequest();
 
