@@ -79,6 +79,8 @@ class CargoSwitchCargoTable extends UnlistedSpecialPage {
 	}
 
 	function execute( $subpage = false ) {
+		$this->checkPermissions();
+
 		$out = $this->getOutput();
 		$req = $this->getRequest();
 		$tableName = $subpage;
