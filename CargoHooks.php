@@ -9,7 +9,7 @@
 class CargoHooks {
 
 	public static function registerExtension() {
-		global $cgScriptPath, $wgScriptPath, $wgCargoFieldTypes, $wgGroupPermissions;
+		global $cgScriptPath, $wgScriptPath, $wgCargoFieldTypes;
 
 		define( 'CARGO_VERSION', '2.2' );
 
@@ -244,7 +244,7 @@ class CargoHooks {
 		// Also, save the "page data" and (if appropriate) "file data".
 		$cdb = CargoUtils::getDB();
 		$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
-		CargoPageData::storeValuesForPage( $wikiPage->getTitle(), $useReplacementTable );
+		CargoPageData::storeValuesForPage( $wikiPage->getTitle(), $useReplacementTable, false );
 		$useReplacementTable = $cdb->tableExists( '_fileData__NEXT' );
 		CargoFileData::storeValuesForFile( $wikiPage->getTitle(), $useReplacementTable );
 
@@ -270,7 +270,7 @@ class CargoHooks {
 		}
 		$cdb = CargoUtils::getDB();
 		$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
-		CargoPageData::storeValuesForPage( $title, $useReplacementTable );
+		CargoPageData::storeValuesForPage( $title, $useReplacementTable, false );
 		$useReplacementTable = $cdb->tableExists( '_fileData__NEXT' );
 		CargoFileData::storeValuesForFile( $title, $useReplacementTable );
 
