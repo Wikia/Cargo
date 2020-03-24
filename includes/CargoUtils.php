@@ -904,6 +904,8 @@ class CargoUtils {
 					$fieldOptionsText .= ' NOT NULL';
 					$fieldOptionsText .= ' PRIMARY KEY';
 					$fieldOptionsText .= ' AUTO_INCREMENT';
+				} elseif ( $fieldName == '_rowID' ) {
+					$fieldOptionsText .= ' NOT NULL';
 				}
 			}
 			if ( $firstField ) {
