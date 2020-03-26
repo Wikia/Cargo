@@ -38,7 +38,10 @@ class SpecialDeleteCargoTable extends UnlistedSpecialPage {
 			}
 			// We delete the main table last, because the other
 			// tables may have foreign keys pointing to it, so those
-			// have to get deleted first.
+			// have to get deleted - or get their foreign keys
+			// deleted - first.
+			$childTables = CargoUtils::getChildTables( $mainTable );
+			CargoUtils::dropForeignKeysForChildTables( $childTables );
 			$cdb->dropTable( $mainTable );
 			$cdb->endAtomic();
 		} catch ( Exception $e ) {
