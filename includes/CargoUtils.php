@@ -218,71 +218,6 @@ class CargoUtils {
 		return $childTables;
 	}
 
-	static function dropForeignKey( $tableName, $fieldName, $remoteTableName, $remoteFieldName ) {
-		$cdb = self::getDB();
-		if ( $cdb->getType() !== 'mysql' ) {
-			// Only for MySQL.
-			return;
-		}
-		$foreignKeyName = $remoteTableName . '__' . $remoteFieldName . '__fk';
-		$sqlTableName = $cdb->tableName( $tableName );
-		$foreignKeyName = $remoteTableName . '__' . $remoteFieldName . '__fk';
-		$sqlFKName = $cdb->addIdentifierQuotes( $foreignKeyName );
-
-		// Make sure foreign key exists before trying to drop it.
-		$res = $cdb->query( "SELECT TRUE
-	FROM INFORMATION_SCHEMA.TABLE_CONSTRAINTS
-	WHERE CONSTRAINT_TYPE = 'FOREIGN KEY'
-	AND TABLE_SCHEMA = '$sqlTableName'
-	AND CONSTRAINT_NAME = '$foreignKeyName'" );
-		$row = $dbw->fetchRow( $res );
-		$exists = $row[0];
-		if ( $exists === false ) {
-			return;
-		}
-
-		$alterSQL = "ALTER TABLE $sqlTableName" .
-			" DROP FOREIGN KEY $sqlFKName";
-		$cdb->query( $alterSQL );
-	}
-
-	static function dropForeignKeysForChildTables( $childTables ) {
-		foreach ( $childTables as $childTableInfo ) {
-			self::dropForeignKey(
-				$childTableInfo['childTable'],
-				$childTableInfo['childField'],
-				$childTableInfo['parentTable'],
-				$childTableInfo['parentField']
-			);
-		}
-	}
-
-	static function addForeignKey( $tableName, $fieldName, $remoteTableName, $remoteFieldName ) {
-		$cdb = self::getDB();
-		if ( $cdb->getType() !== 'mysql' ) {
-			// Only for MySQL.
-			return;
-		}
-		$foreignKeyName = $remoteTableName . '__' . $remoteFieldName . '__fk';
-		$alterSQL = 'ALTER TABLE ' . $cdb->tableName( $tableName ) .
-			' ADD CONSTRAINT ' . $cdb->addIdentifierQuotes( $foreignKeyName ) .
-			' FOREIGN KEY (' . $cdb->addIdentifierQuotes( $fieldName ) .
-			') REFERENCES ' . $cdb->tableName( $remoteTableName ) . ' (' .
-			$cdb->addIdentifierQuotes( $remoteFieldName ) . ')';
-		$cdb->query( $alterSQL );
-	}
-
-	static function addForeignKeysForChildTables( $childTables ) {
-		foreach ( $childTables as $childTableInfo ) {
-			self::addForeignKey(
-				$childTableInfo['childTable'],
-				$childTableInfo['childField'],
-				$childTableInfo['parentTable'],
-				$childTableInfo['parentField']
-			);
-		}
-	}
-
 	static function getDrilldownTabsParams( $tableName ) {
 		$drilldownTabs = [];
 		$dbr = wfGetDB( DB_REPLICA );
@@ -694,9 +629,6 @@ class CargoUtils {
 			}
 
 			$mainTableAlreadyExists = $cdb->tableExists( $tableNames[0] );
-			$childTables = self::getChildTables( $tableNames[0] );
-			self::dropForeignKeysForChildTables( $childTables );
-
 			foreach ( $tableNames as $curTable ) {
 				try {
 					$cdb->startAtomic( __METHOD__ );
@@ -712,10 +644,9 @@ class CargoUtils {
 			$dbw->delete( 'cargo_tables', [ 'template_id' => $templatePageID ] );
 		}
 
-		self::createCargoTableOrTables( $cdb, $dbw, $tableName, $tableSchema, $tableSchemaString, $parentTables, $templatePageID );
+		self::createCargoTableOrTables( $cdb, $dbw, $tableName, $tableSchema, $tableSchemaString, $templatePageID );
 
 		if ( !$createReplacement ) {
-			self::addForeignKeysForChildTables( $childTables );
 			// Log this.
 			if ( $mainTableAlreadyExists ) {
 				self::logTableAction( 'recreatetable', $tableName, $user );
@@ -843,7 +774,7 @@ class CargoUtils {
 		}
 	}
 
-	public static function createCargoTableOrTables( $cdb, $dbw, $tableName, $tableSchema, $tableSchemaString, $parentTables, $templatePageID ) {
+	public static function createCargoTableOrTables( $cdb, $dbw, $tableName, $tableSchema, $tableSchemaString, $templatePageID ) {
 		$cdb->startAtomic();
 		$cdbTableName = $cdb->addIdentifierQuotes( $cdb->tableName( $tableName, 'plain' ) );
 		$fieldsInMainTable = [
@@ -887,7 +818,7 @@ class CargoUtils {
 			}
 		}
 
-		self::createTable( $cdb, $tableName, $fieldsInMainTable, false, $parentTables );
+		self::createTable( $cdb, $tableName, $fieldsInMainTable );
 
 		// Now also create tables for each of the 'list' fields,
 		// if there are any.
@@ -910,15 +841,8 @@ class CargoUtils {
 					$fieldsInTable['_value'] = $fieldType;
 				}
 				$fieldsInTable['_position'] = 'Integer';
-				$parentTablesForFieldTable = [
-					'mainTable' => [
-						'Name' => $tableName,
-						'_localField' => '_rowID',
-						'_remoteField' => '_ID'
-					]
-				];
 
-				self::createTable( $cdb, $fieldTableName, $fieldsInTable, false, $parentTablesForFieldTable );
+				self::createTable( $cdb, $fieldTableName, $fieldsInTable );
 				$fieldTableNames[] = $fieldTableName;
 			}
 			if ( $fieldDescription->mIsHierarchy ) {
@@ -969,7 +893,7 @@ class CargoUtils {
 		] );
 	}
 
-	public static function createTable( $cdb, $tableName, $fieldsInTable, $multipleColumnIndex = false, $parentTables = [] ) {
+	public static function createTable( $cdb, $tableName, $fieldsInTable, $multipleColumnIndex = false ) {
 		global $wgCargoDBRowFormat;
 
 		// Unfortunately, there is not yet a 'CREATE TABLE' wrapper
@@ -1084,15 +1008,6 @@ class CargoUtils {
 					"$sqlTableName ($sqlFieldName)";
 				$cdb->query( $createIndexSQL );
 			}
-		}
-
-		// Create a "foreign key" for each parent table - this will
-		// only have an effect if these tables use InnoDB.
-		foreach ( $parentTables as $alias => $parentTableInfo ) {
-			$localField = $parentTableInfo['_localField'];
-			$remoteField = $parentTableInfo['_remoteField'];
-			$remoteTable = $parentTableInfo['Name'];
-			self::addForeignKey( $tableName, $localField, $remoteTable, $remoteField );
 		}
 	}
 
