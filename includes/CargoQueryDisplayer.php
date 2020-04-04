@@ -225,9 +225,18 @@ class CargoQueryDisplayer {
 			if ( $title == null ) {
 				return $value;
 			}
-			// makeThumbLinkObj() is still not deprecated in MW 1.28,
-			// but presumably it will be at some point.
-			return Linker::makeThumbLinkObj( $title, wfLocalFile( $title ), $value, '' );
+			if ( method_exists( MediaWikiServices::class, 'getRepoGroup' ) ) {
+				// MediaWiki 1.34+
+				$file = MediaWikiServices::getInstance()->getRepoGroup()->getLocalRepo()->newFile( $title );
+			} else {
+				$file = wfLocalFile( $title );
+			}
+			return Linker::makeThumbLinkObj(
+				$title,
+				$file,
+				$value,
+				''
+			);
 		} elseif ( $type == 'URL' ) {
 			if ( array_key_exists( 'link text', $fieldDescription->mOtherParams ) ) {
 				return Html::element( 'a', [ 'href' => $value ],
