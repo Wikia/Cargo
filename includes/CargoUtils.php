@@ -673,7 +673,7 @@ class CargoUtils {
 
 	public static function tableFullyExists( $tableName ) {
 		$dbr = wfGetDB( DB_REPLICA );
-		$numRows = $dbr->selectField( 'cargo_tables', 'COUNT(*)', [ 'main_table' => $tableName ] );
+		$numRows = $dbr->selectRowCount( 'cargo_tables', '*', [ 'main_table' => $tableName ], __METHOD__ );
 		if ( $numRows == 0 ) {
 			return false;
 		}
