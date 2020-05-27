@@ -756,15 +756,14 @@ class CargoSQLQuery {
 	 * the regex beginning from a non-valid identifier character to word
 	 * boundary.
 	 */
-	function substVirtualFieldName( &$subject, $pattern, $tableName, $notOperation, $fieldTableName, $compareOperator, &$found ) {
+	function substVirtualFieldName( &$subject, $pattern, $tableAlias, $notOperation, $fieldTableName, $compareOperator, &$found ) {
 		if ( preg_match_all( $pattern, $subject, $matches ) ) {
 			$pattern = str_replace( '([^\w$,]|^)', '\b', $pattern );
 			$pattern = str_replace( '([^\w$.,]|^)', '\b', $pattern );
 			$notOperator = $notOperation ? 'NOT' : '';
 			foreach ( $matches[2] as $match ) {
 				$replacement =
-					$this->mCargoDB->tableName( $tableName ) .
-					"._ID " .
+					$tableAlias . "._ID " .
 					$notOperator .
 					" IN (SELECT _rowID FROM " .
 					$this->mCargoDB->tableName( $fieldTableName ) .
@@ -846,7 +845,7 @@ class CargoSQLQuery {
 					$this->substVirtualFieldName(
 						$this->mWhereStr,
 						$patternRoot[$i] . 'HOLDS\s+NOT\s+LIKE' . $patternSuffix,
-						$tableName,
+						$tableAlias,
 						$notOperation = true,
 						$fieldTableName,
 						$compareOperation = "LIKE ",
@@ -856,7 +855,7 @@ class CargoSQLQuery {
 					$this->substVirtualFieldName(
 						$this->mWhereStr,
 						$patternRoot[$i] . 'HOLDS\s+LIKE' . $patternSuffix,
-						$tableName,
+						$tableAlias,
 						$notOperation = false,
 						$fieldTableName,
 						$compareOperation = "LIKE ",
@@ -866,7 +865,7 @@ class CargoSQLQuery {
 					$this->substVirtualFieldName(
 						$this->mWhereStr,
 						$patternRoot[$i] . 'HOLDS\s+NOT' . $patternSuffix,
-						$tableName,
+						$tableAlias,
 						$notOperation = true,
 						$fieldTableName,
 						$compareOperation = "= ",
@@ -876,7 +875,7 @@ class CargoSQLQuery {
 					$this->substVirtualFieldName(
 						$this->mWhereStr,
 						$patternRoot[$i] . 'HOLDS' . $patternSuffix,
-						$tableName,
+						$tableAlias,
 						$notOperation = false,
 						$fieldTableName,
 						$compareOperation = "= ",
