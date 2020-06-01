@@ -756,23 +756,42 @@ class CargoSQLQuery {
 	 * the regex beginning from a non-valid identifier character to word
 	 * boundary.
 	 */
-	function substVirtualFieldName( &$subject, $pattern, $tableAlias, $notOperation, $fieldTableName, $compareOperator, &$found ) {
-		if ( preg_match_all( $pattern, $subject, $matches ) ) {
-			$pattern = str_replace( '([^\w$,]|^)', '\b', $pattern );
-			$pattern = str_replace( '([^\w$.,]|^)', '\b', $pattern );
-			$notOperator = $notOperation ? 'NOT' : '';
-			foreach ( $matches[2] as $match ) {
-				$replacement =
-					$tableAlias . "._ID " .
-					$notOperator .
-					" IN (SELECT _rowID FROM " .
-					$this->mCargoDB->tableName( $fieldTableName ) .
-					" WHERE _value " .
-					$compareOperator .
-					$match .
-					") ";
-
-				$subject = preg_replace( $pattern, $replacement, $subject, $limit = 1 );
+	function substVirtualFieldName( &$subject, $rootPattern, $tableAlias, $notOperation, $fieldTableName, $compareOperator, &$found ) {
+		$notOperator = $notOperation ? 'NOT' : '';
+		$patternMatch = [];
+		// Match HOLDS syntax with values in single quotes
+		if ( preg_match_all( $rootPattern . '\s*(\'.*?[^\\\\\']\')/i', $subject, $matches ) ) {
+			$pattern = $rootPattern . '\s*(\'.*?[^\\\\\']\')/i';
+			$patternMatch[$pattern] = $matches;
+		}
+		// Match HOLDS syntax with values in double quotes
+		if ( preg_match_all( $rootPattern . '\s*(\".*?[^\\\"]\")/i', $subject, $matches ) ) {
+			$pattern = $rootPattern . '\s*(\".*?[^\\\"]\")/i';
+			$patternMatch[$pattern] = $matches;
+		}
+		// Match HOLDS syntax with fieldnames without quotes.
+		// Fieldnames are expected to be single words without spaces.
+		if ( preg_match_all( $rootPattern . '\s*([^\'"\s]+\s*)/i', $subject, $matches ) ) {
+			$pattern = $rootPattern . '\s*([^\'"\s]*\s*)/i';
+			$patternMatch[$pattern] = $matches;
+		}
+		// If any match is found, replace it with a subquery.
+		if ( !empty( $patternMatch ) ) {
+			foreach ( $patternMatch as $pattern => $matches ) {
+				$pattern = str_replace( '([^\w$,]|^)', '\b', $pattern );
+				$pattern = str_replace( '([^\w$.,]|^)', '\b', $pattern );
+				foreach ( $matches[2] as $match ) {
+					$replacement =
+						$tableAlias . "._ID " .
+						$notOperator .
+						" IN (SELECT _rowID FROM " .
+						$this->mCargoDB->tableName( $fieldTableName ) .
+						" WHERE _value " .
+						$compareOperator .
+						$match .
+						") ";
+					$subject = preg_replace( $pattern, $replacement, $subject, $limit = 1 );
+				}
 			}
 			$found = true;
 		}
@@ -826,7 +845,6 @@ class CargoSQLQuery {
 
 			$fieldTableName = $tableName . '__' . $fieldName;
 			$fieldTableAlias = $tableAlias . '__' . $fieldName;
-			$patternSuffix = '\s*([\'"]?[^\'"]*[\'"]?)/i';
 			$fieldReplaced = false;
 			$throwException = false;
 
@@ -844,7 +862,7 @@ class CargoSQLQuery {
 
 					$this->substVirtualFieldName(
 						$this->mWhereStr,
-						$patternRoot[$i] . 'HOLDS\s+NOT\s+LIKE' . $patternSuffix,
+						$patternRoot[$i] . 'HOLDS\s+NOT\s+LIKE',
 						$tableAlias,
 						$notOperation = true,
 						$fieldTableName,
@@ -854,7 +872,7 @@ class CargoSQLQuery {
 
 					$this->substVirtualFieldName(
 						$this->mWhereStr,
-						$patternRoot[$i] . 'HOLDS\s+LIKE' . $patternSuffix,
+						$patternRoot[$i] . 'HOLDS\s+LIKE',
 						$tableAlias,
 						$notOperation = false,
 						$fieldTableName,
@@ -864,7 +882,7 @@ class CargoSQLQuery {
 
 					$this->substVirtualFieldName(
 						$this->mWhereStr,
-						$patternRoot[$i] . 'HOLDS\s+NOT' . $patternSuffix,
+						$patternRoot[$i] . 'HOLDS\s+NOT',
 						$tableAlias,
 						$notOperation = true,
 						$fieldTableName,
@@ -874,7 +892,7 @@ class CargoSQLQuery {
 
 					$this->substVirtualFieldName(
 						$this->mWhereStr,
-						$patternRoot[$i] . 'HOLDS' . $patternSuffix,
+						$patternRoot[$i] . 'HOLDS',
 						$tableAlias,
 						$notOperation = false,
 						$fieldTableName,
@@ -895,7 +913,6 @@ class CargoSQLQuery {
 					}
 				}
 			}
-
 			// Always use the "field table" if it's a date field,
 			// and it's being queried.
 			$isFieldInQuery = in_array( $fieldName, $this->mAliasedFieldNames ) ||
@@ -904,7 +921,6 @@ class CargoSQLQuery {
 				$fieldReplaced = true;
 			}
 		}
-
 		// "join on"
 		$newCargoJoinConds = [];
 		foreach ( $this->mCargoJoinConds as $i => $joinCond ) {
