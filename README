@@ -1,6 +1,6 @@
 Cargo extension
 
-        Version 2.5
+        Version 2.6
         Yaron Koren
 
 This is free software licensed under the GNU General Public License. Please
@@ -70,8 +70,9 @@ support for "parent tables", were done by Nikhil Kumar as part of the
 2018 Google Summer of Code.
 
 Important code contributions were also made by Ad Strack van Schijndel,
-Cody3647, Duncan Crane, Ed Hoo, IijimaYun, Namit Ohri, Paladox,
-Priyanshu Varshney, Tomás Bolaño, Sam Wilson, Vivek Ghaisas and others.
+Cody3647, Derick Alangi, Duncan Crane, Ed Hoo, IijimaYun, Namit Ohri,
+Paladox, Priyanshu Varshney, Tomás Bolaño, Sahaj Khandelwal, Sam
+Wilson, Vivek Ghaisas and others.
 
 == Contact ==
 
