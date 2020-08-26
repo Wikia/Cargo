@@ -182,7 +182,7 @@ class CargoUtils {
 		return $tableNames;
 	}
 
-	static function getParentTables( $tableName ) {
+	public static function getParentTables( $tableName ) {
 		$parentTables = [];
 		$dbr = wfGetDB( DB_REPLICA );
 		$res = $dbr->select( 'cargo_tables', [ 'template_id', 'main_table' ] );
@@ -196,7 +196,7 @@ class CargoUtils {
 		}
 	}
 
-	static function getChildTables( $tableName ) {
+	public static function getChildTables( $tableName ) {
 		$childTables = [];
 		$allParentTablesInfo = self::getAllPageProps( 'CargoParentTables' );
 		foreach ( $allParentTablesInfo as $parentTablesInfoStr => $templateIDs ) {
@@ -223,7 +223,7 @@ class CargoUtils {
 		return $childTables;
 	}
 
-	static function getDrilldownTabsParams( $tableName ) {
+	public static function getDrilldownTabsParams( $tableName ) {
 		$drilldownTabs = [];
 		$dbr = wfGetDB( DB_REPLICA );
 		$res = $dbr->select( 'cargo_tables', [ 'template_id', 'main_table' ] );
@@ -237,7 +237,7 @@ class CargoUtils {
 		}
 	}
 
-	static function getTableSchemas( $tableNames ) {
+	public static function getTableSchemas( $tableNames ) {
 		$mainTableNames = [];
 		foreach ( $tableNames as $tableName ) {
 			if ( strpos( $tableName, '__' ) !== false &&
@@ -277,7 +277,7 @@ class CargoUtils {
 	 * either #cargo_declare or #cargo_attach, if the template has a
 	 * call to either one.
 	 */
-	static function getTableNameForTemplate( $templateTitle ) {
+	public static function getTableNameForTemplate( $templateTitle ) {
 		$templatePageID = $templateTitle->getArticleID();
 		$declaredTableName = self::getPageProp( $templatePageID, 'CargoTableName' );
 		if ( $declaredTableName !== null ) {
@@ -295,7 +295,7 @@ class CargoUtils {
 	 * @param string $tableName
 	 * @return string
 	 */
-	static function makeDifferentAlias( $tableName ) {
+	public static function makeDifferentAlias( $tableName ) {
 		$tableAlias = $tableName . "_alias";
 		return $tableAlias;
 	}
@@ -459,7 +459,7 @@ class CargoUtils {
 		return $string[0] == "'" && substr( $string, -1, 1 ) == "'";
 	}
 
-	static function getDateFunctions( $dateDBField ) {
+	public static function getDateFunctions( $dateDBField ) {
 		global $wgCargoDBtype;
 
 		// Unfortunately, date handling in general - and date extraction
