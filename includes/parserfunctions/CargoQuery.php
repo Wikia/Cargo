@@ -80,6 +80,7 @@ class CargoQuery {
 			$sqlQuery = CargoSQLQuery::newFromValues( $tablesStr, $fieldsStr, $whereStr, $joinOnStr,
 				$groupByStr, $havingStr, $orderByStr, $limitStr, $offsetStr );
 		} catch ( Exception $e ) {
+			$parser->addTrackingCategory( 'cargo-query-error-tracking-category' );
 			return CargoUtils::formatError( $e->getMessage() );
 		}
 		$queryDisplayer = CargoQueryDisplayer::newFromSQLQuery( $sqlQuery );
@@ -121,7 +122,8 @@ class CargoQuery {
 		try {
 			$queryResults = $sqlQuery->run();
 		} catch ( Exception $e ) {
-			return CargoUtils::formatError( $e->getMessage() );
+			$parser->addTrackingCategory( 'cargo-query-error-tracking-category' );
+			return CargoUtils::formatError( $e->getMessage(), 'cargo-query-error' );
 		}
 
 		// Finally, do the display.

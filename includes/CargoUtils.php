@@ -154,8 +154,9 @@ class CargoUtils {
 		return $row['pp_page'];
 	}
 
-	public static function formatError( $errorString ) {
-		return Html::element( 'div', [ 'class' => 'error' ], $errorString );
+	public static function formatError( $errorString, $extraClass = false ) {
+		$classes = $extraClass ? 'error ' . $extraClass : 'error';
+		return Html::element( 'div', [ 'class' => $classes ], $errorString );
 	}
 
 	public static function displayErrorMessage( OutputPage $out, Message $message ) {

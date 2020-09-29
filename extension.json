@@ -348,6 +348,10 @@
 		"ResourceLoaderGetConfigVars": "CargoHooks::onResourceLoaderGetConfigVars",
 		"ScribuntoExternalLibraries": "CargoHooks::addLuaLibrary"
 	},
+	"TrackingCategories": [
+		"cargo-query-error-tracking-category",
+		"cargo-store-error-tracking-category"
+	],
 	"config": {
 		"CargoDecimalMark": ".",
 		"CargoDigitGroupingCharacter": ",",
@@ -362,6 +366,7 @@
 		"CargoDefaultStringBytes": 300,
 		"CargoDefaultQueryLimit": 100,
 		"CargoMaxQueryLimit": 5000,
+		"CargoStoreOnEveryParse": true,
 		"Cargo24HourTime": false,
 		"CargoDefaultMapService": "OpenLayers",
 		"CargoGoogleMapsKey": null,

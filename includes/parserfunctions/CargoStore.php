@@ -1,4 +1,7 @@
 <?php
+
+use MediaWiki\MediaWikiServices;
+
 /**
  * Class for the #cargo_store function.
  *
@@ -95,6 +98,7 @@ class CargoStore {
 		$cdb->commit();
 
 		if ( $errors ) {
+			$parser->addTrackingCategory( 'cargo-store-error-tracking-category' );
 			$parserOutput = $parser->getOutput();
 			$parserOutput->setProperty( 'CargoStorageError', $errors );
 			wfDebugLog( 'cargo', "CargoStore::run() - skipping; storage error encountered.\n" );
@@ -104,24 +108,41 @@ class CargoStore {
 		// This function does actual DB modifications - so only proceed
 		// if this is called via either a page save or a "recreate
 		// data" action for a template that this page calls.
+		$dryRun = false;
 		if ( count( self::$settings ) == 0 ) {
 			wfDebugLog( 'cargo', "CargoStore::run() - skipping; no settings defined.\n" );
-			return;
+			$dryRun = true;
 		} elseif ( !array_key_exists( 'origin', self::$settings ) ) {
 			wfDebugLog( 'cargo', "CargoStore::run() - skipping; no origin defined.\n" );
-			return;
-		}
-
-		if ( self::$settings['origin'] == 'template' ) {
+			$dryRun = true;
+		} elseif ( self::$settings['origin'] == 'template' ) {
 			// It came from a template "recreate data" action -
 			// make sure it passes various criteria.
 			if ( self::$settings['dbTableName'] != $origTableName ) {
 				wfDebugLog( 'cargo', "CargoStore::run() - skipping; dbTableName not set.\n" );
-				return;
+				$dryRun = true;
 			}
 		}
 
-		self::storeAllData( $title, $tableName, $tableFieldValues, $tableSchema );
+		// run database writes even when this isn't a page save or recreate
+		$config = MediaWikiServices::getInstance()->getMainConfig();
+		$storeOnEveryParse = $config->get( 'CargoStoreOnEveryParse' );
+		if ( !$storeOnEveryParse && $dryRun ) {
+			return;
+		}
+
+		try {
+			self::storeAllData( $title, $tableName, $tableFieldValues, $tableSchema, $dryRun );
+		} catch (Wikimedia\Rdbms\DBQueryError $err) {
+			// abort any writes
+			$cdb = CargoUtils::getDB();
+			$cdb->rollback();
+
+			// show the error
+			$parser->addTrackingCategory( 'cargo-store-error-tracking-category' );
+			$parser->getOutput()->setProperty( 'CargoStorageError', $err->getMessage() );
+			return CargoUtils::formatError( $err->getMessage(), 'cargo-store-error' );
+		}
 
 		// Finally, add a record of this to the cargo_pages table, if
 		// necessary.
@@ -236,7 +257,7 @@ class CargoStore {
 		return [ $datePortion, $precision ];
 	}
 
-	public static function storeAllData( $title, $tableName, $tableFieldValues, $tableSchema ) {
+	public static function storeAllData( $title, $tableName, $tableFieldValues, $tableSchema, $dryRun = false ) {
 		$pageID = $title->getArticleID();
 		$pageName = $title->getPrefixedText();
 		$pageTitle = $title->getText();
@@ -549,7 +570,11 @@ class CargoStore {
 		}
 
 		// End transaction and apply DB changes.
-		$cdb->endAtomic( __METHOD__ );
+		if ( $dryRun ) {
+			$cdb->rollback();
+			return;
+		}
+		$cdb->commit();
 	}
 
 	/**

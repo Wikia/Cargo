@@ -138,5 +138,7 @@
 	"cargo-purgecache-failed": "Cache purging failed",
 	"specialpages-group-cargo": "Cargo",
 	"cargo-pageschemas-cargofield": "Cargo field",
-	"cargo-pageschemas-tablename": "Table name:"
+	"cargo-pageschemas-tablename": "Table name:",
+	"cargo-query-error-tracking-category": "Pages with Cargo query errors",
+	"cargo-store-error-tracking-category": "Pages with Cargo store errors"
 }
