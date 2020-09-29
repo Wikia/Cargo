@@ -167,7 +167,7 @@ class CargoHooks {
 		// Get all the "main" tables that this page is contained in.
 		$dbw = wfGetDB( DB_MASTER );
 		$cdb = CargoUtils::getDB();
-		$cdb->startAtomic( __METHOD__ );
+		$cdb->begin();
 		$cdbPageIDCheck = [ $cdb->addIdentifierQuotes( '_pageID' ) => $pageID ];
 
 		$res = $dbw->select( 'cargo_pages', 'table_name', [ 'page_id' => $pageID ] );
@@ -215,7 +215,7 @@ class CargoHooks {
 		$dbw->delete( 'cargo_pages', [ 'page_id' => $pageID ] );
 
 		// End transaction and apply DB changes.
-		$cdb->endAtomic( __METHOD__ );
+		$cdb->commit();
 	}
 
 	/**

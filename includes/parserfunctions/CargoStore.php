@@ -73,7 +73,7 @@ class CargoStore {
 
 		// Always store data in the replacement table if it exists.
 		$cdb = CargoUtils::getDB();
-		$cdb->startAtomic( __METHOD__ );
+		$cdb->begin();
 		if ( $cdb->tableExists( $tableName . '__NEXT' ) ) {
 			$tableName .= '__NEXT';
 		}
@@ -86,13 +86,13 @@ class CargoStore {
 			// This table probably has not been created yet -
 			// just exit silently.
 			wfDebugLog( 'cargo', "CargoStore::run() - skipping; Cargo table ($tableName) does not exist.\n" );
-			$cdb->endAtomic( __METHOD__ );
+			$cdb->commit();
 			return;
 		}
 		$tableSchema = CargoTableSchema::newFromDBString( $row['table_schema'] );
 
 		$errors = self::blankOrRejectBadData( $cdb, $title, $tableName, $tableFieldValues, $tableSchema );
-		$cdb->endAtomic( __METHOD__ );
+		$cdb->commit();
 
 		if ( $errors ) {
 			$parserOutput = $parser->getOutput();
@@ -352,7 +352,7 @@ class CargoStore {
 		$cdb = CargoUtils::getDB();
 
 		// Start a transaction for the store
-		$cdb->startAtomic( __METHOD__ );
+		$cdb->begin();
 
 		// The _position field was only added to list tables in Cargo
 		// 2.1, which means that any list table last created or
@@ -402,7 +402,7 @@ class CargoStore {
 		// solution, this workaround will be helpful.
 		$rowAlreadyExists = self::doesRowAlreadyExist( $cdb, $title, $tableName, $tableFieldValues, $tableSchema );
 		if ( $rowAlreadyExists ) {
-			$cdb->endAtomic( __METHOD__ );
+			$cdb->commit();
 			return;
 		}
 

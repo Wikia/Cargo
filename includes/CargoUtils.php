@@ -649,9 +649,9 @@ class CargoUtils {
 			$mainTableAlreadyExists = self::tableFullyExists( $tableNames[0] );
 			foreach ( $tableNames as $curTable ) {
 				try {
-					$cdb->startAtomic( __METHOD__ );
+					$cdb->begin();
 					$cdb->dropTable( $curTable );
-					$cdb->endAtomic( __METHOD__ );
+					$cdb->commit();
 				} catch ( Exception $e ) {
 					throw new MWException( "Caught exception ($e) while trying to drop Cargo table. "
 					. "Please make sure that your database user account has the DROP permission." );
