@@ -440,12 +440,7 @@ class CargoStore {
 		foreach ( $tableSchema->mFieldDescriptions as $fieldName => $fieldDescription ) {
 			if ( $fieldDescription->mIsList ) {
 				$listFieldTableName = $tableName . '__' . $fieldName;
-				try {
-					$res = $cdb->select( $listFieldTableName, 'COUNT(' .
-						$cdb->addIdentifierQuotes( '_position' ) . ')' );
-				} catch ( Exception $e ) {
-					$hasPositionField = false;
-				}
+				$hasPositionField = $cdb->fieldExists( $listFieldTableName, '_position' );
 				break;
 			}
 		}
