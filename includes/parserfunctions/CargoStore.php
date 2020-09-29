@@ -402,6 +402,7 @@ class CargoStore {
 		if ( $row == false || $row->AUTO_INCREMENT == null ) {
 			// Set _ID manually if we're not using AUTO_INCREMENT.
 			// This is likely to cause errors when cargo_store is being ran concurrently.
+			$cdb->lockForUpdate( $tableName );
 			$res = $cdb->select( $tableName, 'MAX(' .
 				$cdb->addIdentifierQuotes( '_ID' ) . ') AS "ID"' );
 			$row = $cdb->fetchRow( $res );
