@@ -384,7 +384,7 @@ class CargoHooks {
 		$newPageNamespace = $newtitle->getNamespace();
 		$dbw = wfGetDB( DB_MASTER );
 		$cdb = CargoUtils::getDB();
-		$cdb->startAtomic( __METHOD__ );
+		$cdb->begin();
 		// We use $oldid, because that's the page ID - $newid is the
 		// ID of the redirect page.
 		$res = $dbw->select( 'cargo_pages', 'table_name', [ 'page_id' => $oldid ] );
@@ -416,7 +416,7 @@ class CargoHooks {
 		}
 
 		// End transaction and apply DB changes.
-		$cdb->endAtomic( __METHOD__ );
+		$cdb->commit();
 
 		return true;
 	}

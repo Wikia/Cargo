@@ -805,7 +805,7 @@ class CargoUtils {
 	}
 
 	public static function createCargoTableOrTables( $cdb, $dbw, $tableName, $tableSchema, $tableSchemaString, $templatePageID ) {
-		$cdb->startAtomic();
+		$cdb->begin();
 		$cdbTableName = $cdb->addIdentifierQuotes( $cdb->tableName( $tableName, 'plain' ) );
 		$fieldsInMainTable = [
 			'_ID' => 'Integer',
@@ -911,7 +911,7 @@ class CargoUtils {
 		}
 
 		// End transaction and apply DB changes.
-		$cdb->endAtomic( __METHOD__ );
+		$cdb->commit();
 
 		// Finally, store all the info in the cargo_tables table.
 		$dbw->insert( 'cargo_tables', [
