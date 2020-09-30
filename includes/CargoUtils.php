@@ -8,6 +8,7 @@
 
 use MediaWiki\Linker\LinkRenderer;
 use MediaWiki\Linker\LinkTarget;
+use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\MediaWikiServices;
 use Wikimedia\Rdbms\Database;
 
@@ -31,7 +32,7 @@ class CargoUtils {
 			return self::$CargoDB;
 		}
 
-		global $wgDBuser, $wgDBpassword, $wgDBprefix, $wgDBservers;
+		global $wgDBuser, $wgDBpassword, $wgDBprefix, $wgDBservers, $wgCommandLineMode;
 		global $wgCargoDBserver, $wgCargoDBname, $wgCargoDBuser, $wgCargoDBpassword, $wgCargoDBprefix, $wgCargoDBtype;
 
 		$dbw = wfGetDB( DB_MASTER );
@@ -83,6 +84,18 @@ class CargoUtils {
 			/** @var DatabaseSqlite $dbw */
 			$params['dbFilePath'] = $dbw->getDbFilePath();
 		}
+
+		$params['profiler'] = function ( $section ) {
+			return Profiler::instance()->scopedProfileIn( $section );
+		};
+		$params['trxProfiler'] = Profiler::instance()->getTransactionProfiler();
+		$params['replLogger'] = LoggerFactory::getInstance( 'DBReplication' );
+		$params['queryLogger'] = LoggerFactory::getInstance( 'DBQuery' );
+		$params['connLogger'] = LoggerFactory::getInstance( 'DBConnection' );
+		$params['perfLogger'] = LoggerFactory::getInstance( 'DBPerformance' );
+		$params['errorLogger'] = [ MWExceptionHandler::class, 'logException' ];
+		$params['deprecationLogger'] = [ MWLBFactory::class, 'logDeprecation' ];
+		$params['cliMode'] = $wgCommandLineMode;
 
 		self::$CargoDB = Database::factory( $wgCargoDBtype, $params );
 		return self::$CargoDB;
