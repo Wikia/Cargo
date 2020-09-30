@@ -27,11 +27,9 @@ class CargoHooks {
 		if ( class_exists( 'MediaWiki\HookContainer\HookContainer' ) ) {
 			// MW 1.35+
 			$wgHooks['SidebarBeforeOutput'][] = "CargoPageValuesAction::addLink";
-			$wgHooks['PageSaveComplete'][] = "CargoHooks::onPageSaveComplete";
 		} else {
 			// MW < 1.35
 			$wgHooks['BaseTemplateToolbox'][] = "CargoPageValuesAction::addLinkOld";
-			$wgHooks['PageContentSaveComplete'][] = "CargoHooks::onPageContentSaveComplete";
 		}
 	}
 
@@ -158,7 +156,7 @@ class CargoHooks {
 	 * @param int $pageID
 	 * @todo - move this to a different class, like CargoUtils?
 	 */
-	public static function deletePageFromSystem( $pageID ) {
+	public static function deletePageFromSystem( $pageID, $forParse = false ) {
 		// We'll delete every reference to this page in the
 		// Cargo tables - in the data tables as well as in
 		// cargo_pages. (Though we need the latter to be able to
@@ -167,13 +165,18 @@ class CargoHooks {
 		// Get all the "main" tables that this page is contained in.
 		$dbw = wfGetDB( DB_MASTER );
 		$cdb = CargoUtils::getDB();
-		$cdb->begin();
+		if ( !$forParse ) {
+			$cdb->begin();
+		}
 		$cdbPageIDCheck = [ $cdb->addIdentifierQuotes( '_pageID' ) => $pageID ];
 
+		$tableNames = [];
 		$res = $dbw->select( 'cargo_pages', 'table_name', [ 'page_id' => $pageID ] );
 		while ( $row = $dbw->fetchRow( $res ) ) {
-			$curMainTable = $row['table_name'];
+			$tableNames[] = $row['table_name'];
+		}
 
+		foreach ( $tableNames as $curMainTable ) {
 			if ( $cdb->tableExists( $curMainTable . '__NEXT' ) ) {
 				// It's a "read-only" table - ignore.
 				continue;
@@ -206,178 +209,113 @@ class CargoHooks {
 			// Now, delete from the "main" table.
 			$cdb->delete( $curMainTable, $cdbPageIDCheck );
 		}
-		$res3 = $dbw->select( 'cargo_tables', 'field_tables', [ 'main_table' => '_pageData' ] );
-		if ( $dbw->numRows( $res3 ) > 0 ) {
+
+		if ( $dbw->selectRowCount( 'cargo_tables', 'field_tables', [ 'main_table' => '_pageData' ] ) > 0 ) {
 			$cdb->delete( '_pageData', $cdbPageIDCheck );
 		}
 
-		// Finally, delete from cargo_pages.
-		$dbw->delete( 'cargo_pages', [ 'page_id' => $pageID ] );
-
 		// End transaction and apply DB changes.
-		$cdb->commit();
+		if ( !$forParse ) {
+			// Only delete from cargo_pages if we're actually writing.
+			$dbw->delete( 'cargo_pages', [ 'page_id' => $pageID ] );
+
+			$cdb->commit();
+		}
 	}
 
 	/**
-	 * Called by the MediaWiki 'PageContentSaveComplete' hook.
+	 * LinksUpdate hook handler which does the actual writes to cargo tables
+	 * for any #cargo_store calls on the parsed page.
 	 *
-	 * We use that hook, instead of 'PageContentSave', because we need
-	 * the page ID to have been set already for newly-created pages.
-	 *
-	 * @global Parser $wgParser
-	 *
-	 * @param WikiPage $wikiPage
-	 * @param User $user Unused
-	 * @param Content $content
-	 * @param string $summary Unused
-	 * @param bool $isMinor Unused
-	 * @param null $isWatch Unused
-	 * @param null $section Unused
-	 * @param int $flags Unused
-	 * @param Status $status Unused
-	 *
-	 * @return bool
+	 * @param LinksUpdate &$linksUpdate
 	 */
-	public static function onPageContentSaveComplete(
-		WikiPage $wikiPage,
-		$user,
-		$content,
-		$summary,
-		$isMinor,
-		$isWatch,
-		$section,
-		$flags,
-		$status
-	) {
-		// First, delete the existing data.
-		$pageID = $wikiPage->getID();
-		self::deletePageFromSystem( $pageID );
-
-		// Now, save the "page data" and (if appropriate) "file data".
-		$cdb = CargoUtils::getDB();
-		$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
-		CargoPageData::storeValuesForPage( $wikiPage->getTitle(), $useReplacementTable, false );
-		$useReplacementTable = $cdb->tableExists( '_fileData__NEXT' );
-		CargoFileData::storeValuesForFile( $wikiPage->getTitle(), $useReplacementTable );
-
-		// Finally, parse the page again, so that #cargo_store will be
-		// called.
-		// Even though the page will get parsed again after the save,
-		// we need to parse it here anyway, for the settings we
-		// added to remain set.
-		CargoStore::$settings['origin'] = 'page save';
-		CargoUtils::parsePageForStorage( $wikiPage->getTitle(), $content->getNativeData() );
-		unset( CargoStore::$settings['origin'] );
-
+	public static function onLinksUpdate( LinksUpdate &$linksUpdate ) {
+		$title = $linksUpdate->getTitle();
+		$parserOutput = $linksUpdate->getParserOutput();
+		CargoUtils::commitStoresForPage( $title, $parserOutput );
 		return true;
 	}
 
 	/**
-	 * Called by a hook in the Approved Revs extension.
+	 * Recursion through Content::getParserOutput should never happen, but if
+	 * it does, this will protect against that.
 	 */
-	public static function onARRevisionApproved( $parser, $title, $revID ) {
-		$pageID = $title->getArticleID();
-		self::deletePageFromSystem( $pageID );
-		// In an unexpected surprise, it turns out that simply adding
-		// this setting will be enough to get the correct revision of
-		// this page to be saved by Cargo, since the page will be
-		// parsed right after this.
-		// The one exception to that rule is that if it's the latest
-		// revision being approved, the page is sometimes not parsed (?) -
-		// so in that case, we'll parse it ourselves.
-		CargoStore::$settings['origin'] = 'Approved Revs revision approved';
-		if ( $revID == $title->getLatestRevID() ) {
-			CargoUtils::parsePageForStorage( $title, null );
+	private static $parseDepth = 0;
+
+	/**
+	 * Called by Content::getParserOutput at the start of a top-level parse.
+	 * Used to start a transaction on the cargo database.
+	 *
+	 * @param Content $content
+	 * @param Title $title
+	 * @param int $revId
+	 * @param ParserOptions $options
+	 * @param bool $generateHtml
+	 * @param ParserOutput &$output
+	 */
+	public static function onContentGetParserOutput(
+		Content $content,
+		Title $title,
+		$revId,
+		ParserOptions $options,
+		$generateHtml,
+		ParserOutput &$output
+	) {
+		self::$parseDepth++;
+
+		if ( self::$parseDepth > 1 ) {
+			wfDebugLog( 'cargo', 'ContentGetParserOutput called recursively' );
+			return;
 		}
+
+		// NYI
 		$cdb = CargoUtils::getDB();
+		$cdb->begin();
+
+		// First, delete the existing data.
+		$pageID = $title->getArticleID();
+		self::deletePageFromSystem( $pageID, true );
+
 		$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
-		CargoPageData::storeValuesForPage( $title, $useReplacementTable );
+		CargoPageData::storeValuesForPage( $title, $useReplacementTable, false );
 		$useReplacementTable = $cdb->tableExists( '_fileData__NEXT' );
 		CargoFileData::storeValuesForFile( $title, $useReplacementTable );
-
-		return true;
 	}
 
 	/**
-	 * Called by the MediaWiki 'PageSaveComplete' hook.
+	 * Called by Content::getParserOutput at the end of a top-level parse.
+	 * Used to rollback the cargo database if any stores happened.
 	 *
-	 * @param WikiPage $wikiPage
-	 * @param UserIdentity $user
-	 * @param string $summary
-	 * @param int $flags
-	 * @param RevisionRecord $revisionRecord
-	 * @param EditResult $editResult
-	 *
-	 * @return bool true
+	 * @param Content $content
+	 * @param Title $title
+	 * @param ParserOutput $output
 	 */
-	public static function onPageSaveComplete(
-		WikiPage $wikiPage,
-		MediaWiki\User\UserIdentity $user,
-		string $summary,
-		int $flags,
-		MediaWiki\Revision\RevisionRecord $revisionRecord,
-		MediaWiki\Storage\EditResult $editResult
+	public static function onContentAlterParserOutput(
+		Content $content,
+		Title $title,
+		ParserOutput $output
 	) {
-		// First, delete the existing data.
-		$pageID = $wikiPage->getID();
-		self::deletePageFromSystem( $pageID );
+		self::$parseDepth--;
 
-		// Now parse the page again, so that #cargo_store will be
-		// called.
-		// Even though the page will get parsed again after the save,
-		// we need to parse it here anyway, for the settings we
-		// added to remain set.
-		CargoStore::$settings['origin'] = 'page save';
-		CargoUtils::parsePageForStorage(
-			$wikiPage->getTitle(),
-			$revisionRecord->getContent( SlotRecord::MAIN )->getNativeData()
-		);
-
-		// Also, save the "page data" and (if appropriate) "file data".
-		$cdb = CargoUtils::getDB();
-		$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
-		CargoPageData::storeValuesForPage( $wikiPage->getTitle(), $useReplacementTable, false );
-		$useReplacementTable = $cdb->tableExists( '_fileData__NEXT' );
-		CargoFileData::storeValuesForFile( $wikiPage->getTitle(), $useReplacementTable );
-
-		return true;
-	}
-
-	/**
-	 * Called by a hook in the Approved Revs extension.
-	 */
-	public static function onARRevisionUnapproved( $parser, $title ) {
-		global $egApprovedRevsBlankIfUnapproved;
-
-		$pageID = $title->getArticleID();
-		self::deletePageFromSystem( $pageID );
-		if ( !$egApprovedRevsBlankIfUnapproved ) {
-			// No point storing the Cargo data if it's blank.
-			CargoStore::$settings['origin'] = 'Approved Revs revision unapproved';
+		if ( self::$parseDepth == 0 ) {
+			$cdb = CargoUtils::getDB();
+			$cdb->rollback();
 		}
-		$cdb = CargoUtils::getDB();
-		$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
-		CargoPageData::storeValuesForPage( $title, $useReplacementTable, $egApprovedRevsBlankIfUnapproved );
-		$useReplacementTable = $cdb->tableExists( '_fileData__NEXT' );
-		CargoFileData::storeValuesForFile( $title, $useReplacementTable, $egApprovedRevsBlankIfUnapproved );
-
-		return true;
 	}
 
 	/**
-	 * @param Title &$title Unused
+	 * TitleMoveCompleting handler to update tracking tables after page moves.
+	 *
+	 * @param Title &$oldtitle Unused
 	 * @param Title &$newtitle
 	 * @param User &$user Unused
-	 * @param int $oldid
-	 * @param int $newid Unused
+	 * @param int $pageid
+	 * @param int $redirid Unused
 	 * @param string $reason Unused
 	 * @return bool
-	 *
-	 * It's $user here and not &$user due to a bug in MW 1.27 - this declaration works
-	 * across all versions, thankfully.
 	 */
-	public static function onTitleMoveComplete( Title &$title, Title &$newtitle, User &$user, $oldid,
-		$newid, $reason ) {
+	public static function onTitleMoveCompleting( Title &$oldtitle, Title &$newtitle, User &$user, $pageid,
+		$redirid, $reason ) {
 		// For each main data table to which this page belongs, change
 		// the page name-related fields.
 		$newPageName = $newtitle->getPrefixedText();
@@ -386,9 +324,9 @@ class CargoHooks {
 		$dbw = wfGetDB( DB_MASTER );
 		$cdb = CargoUtils::getDB();
 		$cdb->begin();
-		// We use $oldid, because that's the page ID - $newid is the
-		// ID of the redirect page.
-		$res = $dbw->select( 'cargo_pages', 'table_name', [ 'page_id' => $oldid ] );
+		// We use $pageid, because that's the page ID - $redirid is the
+		// ID of the newly created redirect page.
+		$res = $dbw->select( 'cargo_pages', 'table_name', [ 'page_id' => $pageid ] );
 		while ( $row = $dbw->fetchRow( $res ) ) {
 			$curMainTable = $row['table_name'];
 			$cdb->update( $curMainTable,
@@ -397,7 +335,7 @@ class CargoHooks {
 					$cdb->addIdentifierQuotes( '_pageTitle' ) => $newPageTitle,
 					$cdb->addIdentifierQuotes( '_pageNamespace' ) => $newPageNamespace
 				],
-				[ $cdb->addIdentifierQuotes( '_pageID' ) => $oldid ]
+				[ $cdb->addIdentifierQuotes( '_pageID' ) => $pageid ]
 			);
 		}
 
@@ -411,7 +349,7 @@ class CargoHooks {
 						$cdb->addIdentifierQuotes( '_pageTitle' ) => $newPageTitle,
 						$cdb->addIdentifierQuotes( '_pageNamespace' ) => $newPageNamespace
 					],
-					[ $cdb->addIdentifierQuotes( '_pageID' ) => $oldid ]
+					[ $cdb->addIdentifierQuotes( '_pageID' ) => $pageid ]
 				);
 			}
 		}
@@ -427,7 +365,7 @@ class CargoHooks {
 	 */
 	public static function onArticleDeleteComplete( &$article, User &$user, $reason, $id, $content,
 		$logEntry ) {
-		self::deletePageFromSystem( $id );
+		CargoUtils::deletePageFromSystem( $id );
 		return true;
 	}
 
@@ -445,6 +383,7 @@ class CargoHooks {
 		if ( !$cdb->tableExists( '_fileData' ) ) {
 			return true;
 		}
+
 		$title = $image->getLocalFile()->getTitle();
 		$useReplacementTable = $cdb->tableExists( '_fileData__NEXT' );
 		$pageID = $title->getArticleID();
@@ -452,6 +391,7 @@ class CargoHooks {
 		$fileDataTable = $useReplacementTable ? '_fileData__NEXT' : '_fileData';
 		$cdb->delete( $fileDataTable, $cdbPageIDCheck );
 		CargoFileData::storeValuesForFile( $title, $useReplacementTable );
+		return true;
 	}
 
 	/**

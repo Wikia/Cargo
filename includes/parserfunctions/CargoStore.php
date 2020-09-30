@@ -76,7 +76,6 @@ class CargoStore {
 
 		// Always store data in the replacement table if it exists.
 		$cdb = CargoUtils::getDB();
-		$cdb->begin();
 		if ( $cdb->tableExists( $tableName . '__NEXT' ) ) {
 			$tableName .= '__NEXT';
 		}
@@ -89,69 +88,34 @@ class CargoStore {
 			// This table probably has not been created yet -
 			// just exit silently.
 			wfDebugLog( 'cargo', "CargoStore::run() - skipping; Cargo table ($tableName) does not exist.\n" );
-			$cdb->commit();
 			return;
 		}
 		$tableSchema = CargoTableSchema::newFromDBString( $row['table_schema'] );
 
+		$parserOutput = $parser->getOutput();
 		$errors = self::blankOrRejectBadData( $cdb, $title, $tableName, $tableFieldValues, $tableSchema );
-		$cdb->commit();
-
 		if ( $errors ) {
 			$parser->addTrackingCategory( 'cargo-store-error-tracking-category' );
-			$parserOutput = $parser->getOutput();
 			$parserOutput->setProperty( 'CargoStorageError', $errors );
 			wfDebugLog( 'cargo', "CargoStore::run() - skipping; storage error encountered.\n" );
 			return;
 		}
 
-		// This function does actual DB modifications - so only proceed
-		// if this is called via either a page save or a "recreate
-		// data" action for a template that this page calls.
-		$dryRun = false;
-		if ( count( self::$settings ) == 0 ) {
-			wfDebugLog( 'cargo', "CargoStore::run() - skipping; no settings defined.\n" );
-			$dryRun = true;
-		} elseif ( !array_key_exists( 'origin', self::$settings ) ) {
-			wfDebugLog( 'cargo', "CargoStore::run() - skipping; no origin defined.\n" );
-			$dryRun = true;
-		} elseif ( self::$settings['origin'] == 'template' ) {
-			// It came from a template "recreate data" action -
-			// make sure it passes various criteria.
-			if ( self::$settings['dbTableName'] != $origTableName ) {
-				wfDebugLog( 'cargo', "CargoStore::run() - skipping; dbTableName not set.\n" );
-				$dryRun = true;
-			}
-		}
-
-		// run database writes even when this isn't a page save or recreate
-		$config = MediaWikiServices::getInstance()->getMainConfig();
-		$storeOnEveryParse = $config->get( 'CargoStoreOnEveryParse' );
-		if ( !$storeOnEveryParse && $dryRun ) {
-			return;
-		}
-
 		try {
-			self::storeAllData( $title, $tableName, $tableFieldValues, $tableSchema, $dryRun );
+			self::storeAllData( $title, $tableName, $tableFieldValues, $tableSchema );
 		} catch (Wikimedia\Rdbms\DBQueryError $err) {
-			// abort any writes
-			$cdb = CargoUtils::getDB();
-			$cdb->rollback();
-
 			// show the error
 			$parser->addTrackingCategory( 'cargo-store-error-tracking-category' );
-			$parser->getOutput()->setProperty( 'CargoStorageError', $err->getMessage() );
+			$parserOutput->setProperty( 'CargoStorageError', $err->getMessage() );
 			return CargoUtils::formatError( $err->getMessage(), 'cargo-store-error' );
 		}
 
-		// Finally, add a record of this to the cargo_pages table, if
-		// necessary.
-		$dbw = wfGetDB( DB_MASTER );
-		$res = $dbw->select( 'cargo_pages', 'page_id',
-			[ 'table_name' => $tableName, 'page_id' => $pageID ] );
-		if ( !$row = $dbw->fetchRow( $res ) ) {
-			$dbw->insert( 'cargo_pages', [ 'table_name' => $tableName, 'page_id' => $pageID ] );
-		}
+		$cargoStorage = $parserOutput->getExtensionData( 'CargoStorage' ) ?? [];
+		$cargoStorage[] = [
+			'tableName' => $tableName,
+			'tableFieldValues' => $tableFieldValues,
+		];
+		$parserOutput->setExtensionData( 'CargoStorage', $cargoStorage );
 	}
 
 	/**
@@ -257,7 +221,7 @@ class CargoStore {
 		return [ $datePortion, $precision ];
 	}
 
-	public static function storeAllData( $title, $tableName, $tableFieldValues, $tableSchema, $dryRun = false ) {
+	public static function storeAllData( $title, $tableName, $tableFieldValues, $tableSchema ) {
 		$pageID = $title->getArticleID();
 		$pageName = $title->getPrefixedText();
 		$pageTitle = $title->getText();
@@ -372,9 +336,6 @@ class CargoStore {
 
 		$cdb = CargoUtils::getDB();
 
-		// Start a transaction for the store
-		$cdb->begin();
-
 		// The _position field was only added to list tables in Cargo
 		// 2.1, which means that any list table last created or
 		// re-created before then will not have that field. How to know
@@ -424,7 +385,6 @@ class CargoStore {
 		// solution, this workaround will be helpful.
 		$rowAlreadyExists = self::doesRowAlreadyExist( $cdb, $title, $tableName, $tableFieldValues, $tableSchema );
 		if ( $rowAlreadyExists ) {
-			$cdb->commit();
 			return;
 		}
 
@@ -564,13 +524,6 @@ class CargoStore {
 				CargoUtils::escapedInsert( $cdb, $fileTableName, $fieldValues );
 			}
 		}
-
-		// End transaction and apply DB changes.
-		if ( $dryRun ) {
-			$cdb->rollback();
-			return;
-		}
-		$cdb->commit();
 	}
 
 	/**

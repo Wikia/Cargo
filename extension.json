@@ -325,9 +325,7 @@
 	"Hooks": {
 		"ParserFirstCallInit": "CargoHooks::registerParserFunctions",
 		"MakeGlobalVariablesScript": "CargoHooks::setGlobalJSVariables",
-		"ApprovedRevsRevisionApproved": "CargoHooks::onARRevisionApproved",
-		"ApprovedRevsRevisionUnapproved": "CargoHooks::onARRevisionUnapproved",
-		"TitleMoveComplete": "CargoHooks::onTitleMoveComplete",
+		"TitleMoveCompleting": "CargoHooks::onTitleMoveCompleting",
 		"ArticleDeleteComplete": "CargoHooks::onArticleDeleteComplete",
 		"UploadComplete": "CargoHooks::onUploadComplete",
 		"CategoryAfterPageAdded": "CargoHooks::addCategoryToPageData",
@@ -346,7 +344,10 @@
 		"PageSchemasRegisterHandlers": "CargoPageSchemas::registerClass",
 		"ResourceLoaderRegisterModules": "CargoHooks::registerModules",
 		"ResourceLoaderGetConfigVars": "CargoHooks::onResourceLoaderGetConfigVars",
-		"ScribuntoExternalLibraries": "CargoHooks::addLuaLibrary"
+		"ScribuntoExternalLibraries": "CargoHooks::addLuaLibrary",
+		"ContentGetParserOutput": "CargoHooks::onContentGetParserOutput",
+		"ContentAlterParserOutput": "CargoHooks::onContentAlterParserOutput",
+		"LinksUpdate": "CargoHooks::onLinksUpdate"
 	},
 	"TrackingCategories": [
 		"cargo-query-error-tracking-category",
@@ -368,7 +369,6 @@
 		"CargoDefaultStringBytes": 300,
 		"CargoDefaultQueryLimit": 100,
 		"CargoMaxQueryLimit": 5000,
-		"CargoStoreOnEveryParse": true,
 		"Cargo24HourTime": false,
 		"CargoDefaultMapService": "OpenLayers",
 		"CargoGoogleMapsKey": null,
