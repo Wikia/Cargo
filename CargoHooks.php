@@ -253,20 +253,21 @@ class CargoHooks {
 		$pageID = $wikiPage->getID();
 		self::deletePageFromSystem( $pageID );
 
-		// Now parse the page again, so that #cargo_store will be
+		// Now, save the "page data" and (if appropriate) "file data".
+		$cdb = CargoUtils::getDB();
+		$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
+		CargoPageData::storeValuesForPage( $wikiPage->getTitle(), $useReplacementTable, false );
+		$useReplacementTable = $cdb->tableExists( '_fileData__NEXT' );
+		CargoFileData::storeValuesForFile( $wikiPage->getTitle(), $useReplacementTable );
+
+		// Finally, parse the page again, so that #cargo_store will be
 		// called.
 		// Even though the page will get parsed again after the save,
 		// we need to parse it here anyway, for the settings we
 		// added to remain set.
 		CargoStore::$settings['origin'] = 'page save';
 		CargoUtils::parsePageForStorage( $wikiPage->getTitle(), $content->getNativeData() );
-
-		// Also, save the "page data" and (if appropriate) "file data".
-		$cdb = CargoUtils::getDB();
-		$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
-		CargoPageData::storeValuesForPage( $wikiPage->getTitle(), $useReplacementTable, false );
-		$useReplacementTable = $cdb->tableExists( '_fileData__NEXT' );
-		CargoFileData::storeValuesForFile( $wikiPage->getTitle(), $useReplacementTable );
+		unset( CargoStore::$settings['origin'] );
 
 		return true;
 	}
