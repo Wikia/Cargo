@@ -8,97 +8,15 @@
 
 use MediaWiki\Linker\LinkRenderer;
 use MediaWiki\Linker\LinkTarget;
-use MediaWiki\Logger\LoggerFactory;
 use MediaWiki\MediaWikiServices;
 use Wikimedia\Rdbms\Database;
 
 class CargoUtils {
-
-	static $CargoDB = null;
-
 	/**
-	 * @global string $wgDBuser
-	 * @global string $wgDBpassword
-	 * @global string $wgCargoDBserver
-	 * @global string $wgCargoDBname
-	 * @global string $wgCargoDBuser
-	 * @global string $wgCargoDBpasswordd
-	 * @global string $wgCargoDBprefix
-	 * @global string $wgCargoDBtype
-	 * @return Database or DatabaseBase
+	 * @return Database
 	 */
 	public static function getDB() {
-		if ( self::$CargoDB != null && self::$CargoDB->isOpen() ) {
-			return self::$CargoDB;
-		}
-
-		global $wgDBuser, $wgDBpassword, $wgDBprefix, $wgDBservers, $wgCommandLineMode;
-		global $wgCargoDBserver, $wgCargoDBname, $wgCargoDBuser, $wgCargoDBpassword, $wgCargoDBprefix, $wgCargoDBtype;
-
-		$dbw = wfGetDB( DB_MASTER );
-		$server = $dbw->getServer();
-		$name = $dbw->getDBname();
-		$type = $dbw->getType();
-
-		// We need $wgCargoDBtype for other functions.
-		if ( $wgCargoDBtype === null ) {
-			$wgCargoDBtype = $type;
-		}
-		$dbServer = $wgCargoDBserver === null ? $server : $wgCargoDBserver;
-		$dbName = $wgCargoDBname === null ? $name : $wgCargoDBname;
-
-		// Server (host), db name, and db type can be retrieved from $dbw via
-		// public methods, but username and password cannot. If these values are
-		// not set for Cargo, get them from either $wgDBservers or wgDBuser and
-		// $wgDBpassword, depending on whether or not there are multiple DB servers.
-		if ( $wgCargoDBuser !== null ) {
-			$dbUsername = $wgCargoDBuser;
-		} elseif ( is_array( $wgDBservers ) && isset( $wgDBservers[0] ) ) {
-			$dbUsername = $wgDBservers[0]['user'];
-		} else {
-			$dbUsername = $wgDBuser;
-		}
-		if ( $wgCargoDBpassword !== null ) {
-			$dbPassword = $wgCargoDBpassword;
-		} elseif ( is_array( $wgDBservers ) && isset( $wgDBservers[0] ) ) {
-			$dbPassword = $wgDBservers[0]['password'];
-		} else {
-			$dbPassword = $wgDBpassword;
-		}
-
-		if ( $wgCargoDBprefix !== null ) {
-			$dbTablePrefix = $wgCargoDBprefix;
-		} else {
-			$dbTablePrefix = $wgDBprefix . 'cargo__';
-		}
-
-		$params = [
-			'host' => $dbServer,
-			'user' => $dbUsername,
-			'password' => $dbPassword,
-			'dbname' => $dbName,
-			'tablePrefix' => $dbTablePrefix,
-		];
-
-		if ( $type === "sqlite" ) {
-			/** @var DatabaseSqlite $dbw */
-			$params['dbFilePath'] = $dbw->getDbFilePath();
-		}
-
-		$params['profiler'] = function ( $section ) {
-			return Profiler::instance()->scopedProfileIn( $section );
-		};
-		$params['trxProfiler'] = Profiler::instance()->getTransactionProfiler();
-		$params['replLogger'] = LoggerFactory::getInstance( 'DBReplication' );
-		$params['queryLogger'] = LoggerFactory::getInstance( 'DBQuery' );
-		$params['connLogger'] = LoggerFactory::getInstance( 'DBConnection' );
-		$params['perfLogger'] = LoggerFactory::getInstance( 'DBPerformance' );
-		$params['errorLogger'] = [ MWExceptionHandler::class, 'logException' ];
-		$params['deprecationLogger'] = [ MWLBFactory::class, 'logDeprecation' ];
-		$params['cliMode'] = $wgCommandLineMode;
-
-		self::$CargoDB = Database::factory( $wgCargoDBtype, $params );
-		return self::$CargoDB;
+		return CargoDatabase::get();
 	}
 
 	/**
@@ -574,7 +492,7 @@ class CargoUtils {
 		self::deletePageFromSystem( $pageID );
 
 		// Now, save the "page data" and (if appropriate) "file data".
-		$cdb = CargoUtils::getDB();
+		$cdb = self::getDB();
 		$cdb->begin();
 		$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
 		CargoPageData::storeValuesForPage( $title, $useReplacementTable, false );
@@ -616,7 +534,7 @@ class CargoUtils {
 		}
 	}
 
-	public static function deletePageFromSystem( int $pageID ) {
+	public static function deletePageFromSystem( $pageID ) {
 		// We'll delete every reference to this page in the
 		// Cargo tables - in the data tables as well as in
 		// cargo_pages. (Though we need the latter to be able to
@@ -624,7 +542,7 @@ class CargoUtils {
 
 		// Get all the "main" tables that this page is contained in.
 		$dbw = wfGetDB( DB_MASTER );
-		$cdb = CargoUtils::getDB();
+		$cdb = self::getDB();
 		$cdb->begin();
 		$cdbPageIDCheck = [ $cdb->addIdentifierQuotes( '_pageID' ) => $pageID ];
 
@@ -802,15 +720,14 @@ class CargoUtils {
 		return true;
 	}
 
-	public static function tableFullyExists( $tableName ) {
-		$dbr = wfGetDB( DB_REPLICA );
-		$numRows = $dbr->selectRowCount( 'cargo_tables', '*', [ 'main_table' => $tableName ], __METHOD__ );
-		if ( $numRows == 0 ) {
-			return false;
-		}
+	public static function tableExists( $tableName ) {
+		$table = new CargoTable( $tableName );
+		return $table->exists();
+	}
 
-		$cdb = self::getDB();
-		return $cdb->tableExists( $tableName );
+	public static function tableFullyExists( $tableName ) {
+		$table = new CargoTable( $tableName );
+		return $table->fullyExists();
 	}
 
 	public static function fieldTypeToSQLType( $fieldType, $dbType, $size = null ) {
