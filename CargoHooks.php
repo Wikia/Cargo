@@ -156,7 +156,7 @@ class CargoHooks {
 	 * @param int $pageID
 	 * @todo - move this to a different class, like CargoUtils?
 	 */
-	public static function deletePageFromSystem( $pageID, $forParse = false ) {
+	public static function deletePageFromSystem( $pageID ) {
 		// We'll delete every reference to this page in the
 		// Cargo tables - in the data tables as well as in
 		// cargo_pages. (Though we need the latter to be able to
@@ -165,9 +165,7 @@ class CargoHooks {
 		// Get all the "main" tables that this page is contained in.
 		$dbw = wfGetDB( DB_MASTER );
 		$cdb = CargoUtils::getDB();
-		if ( !$forParse ) {
-			$cdb->begin();
-		}
+		$cdb->begin();
 		$cdbPageIDCheck = [ $cdb->addIdentifierQuotes( '_pageID' ) => $pageID ];
 
 		$tableNames = [];
@@ -215,12 +213,9 @@ class CargoHooks {
 		}
 
 		// End transaction and apply DB changes.
-		if ( !$forParse ) {
-			// Only delete from cargo_pages if we're actually writing.
-			$dbw->delete( 'cargo_pages', [ 'page_id' => $pageID ] );
+		$dbw->delete( 'cargo_pages', [ 'page_id' => $pageID ] );
 
-			$cdb->commit();
-		}
+		$cdb->commit();
 	}
 
 	/**
@@ -267,19 +262,6 @@ class CargoHooks {
 			wfDebugLog( 'cargo', 'ContentGetParserOutput called recursively' );
 			return;
 		}
-
-		// NYI
-		$cdb = CargoUtils::getDB();
-		$cdb->begin();
-
-		// First, delete the existing data.
-		$pageID = $title->getArticleID();
-		self::deletePageFromSystem( $pageID, true );
-
-		$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
-		CargoPageData::storeValuesForPage( $title, $useReplacementTable, false );
-		$useReplacementTable = $cdb->tableExists( '_fileData__NEXT' );
-		CargoFileData::storeValuesForFile( $title, $useReplacementTable );
 	}
 
 	/**
@@ -298,8 +280,7 @@ class CargoHooks {
 		self::$parseDepth--;
 
 		if ( self::$parseDepth == 0 ) {
-			$cdb = CargoUtils::getDB();
-			$cdb->rollback();
+			CargoStore::endTransaction();
 		}
 	}
 

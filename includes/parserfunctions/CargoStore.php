@@ -11,7 +11,7 @@ use MediaWiki\MediaWikiServices;
 
 class CargoStore {
 
-	public static $settings = [];
+	public static $inTransaction = false;
 
 	const DATE_AND_TIME = 0;
 	const DATE_ONLY = 1;
@@ -32,12 +32,6 @@ class CargoStore {
 		// quickly if there's a problem.
 		$title = $parser->getTitle();
 		$pageID = $title->getArticleID();
-		if ( $pageID <= 0 ) {
-			// This will most likely happen if the title is a
-			// "special" page.
-			wfDebugLog( 'cargo', "CargoStore::run() - skipping; not called from a wiki page.\n" );
-			return;
-		}
 
 		$params = func_get_args();
 		array_shift( $params ); // we already know the $parser...
@@ -71,6 +65,8 @@ class CargoStore {
 		if ( $tableName == '' ) {
 			return;
 		}
+
+		self::beginTransaction( $parser->getTitle() );
 
 		$origTableName = $tableName;
 
@@ -574,5 +570,108 @@ class CargoStore {
 		$res = $cdb->select( $tableName, 'COUNT(*)', $tableFieldValuesForCheck );
 		$row = $cdb->fetchRow( $res );
 		return ( $row['COUNT(*)'] > 0 );
+	}
+
+	/**
+	 * Begin a transaction before processing the first #cargo_store in a parse.
+	 *
+	 * This means that results of any #cargo_query which occurs before the
+	 * first #cargo_store can vary depending on the data in the cargo tables
+	 * at the start of the parse.
+	 */
+	private static function beginTransaction( Title $title ) {
+		if ( self::$inTransaction ) {
+			return;
+		}
+
+		$cdb = CargoUtils::getDB();
+		$cdb->begin();
+		self::$inTransaction = true;
+
+		$pageID = $title->getArticleID();
+		if ( $pageID <= 0 ) {
+			// e.g. when creating a new page.
+			return;
+		}
+		self::deletePageFromSystem( $pageID );
+
+		$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
+		CargoPageData::storeValuesForPage( $title, $useReplacementTable, false );
+		$useReplacementTable = $cdb->tableExists( '_fileData__NEXT' );
+		CargoFileData::storeValuesForFile( $title, $useReplacementTable );
+	}
+
+	/**
+	 * Deletes all Cargo data for a specific page - *except* data
+	 * contained in Cargo tables which are read-only because their
+	 * "replacement table" exists.
+	 *
+	 * @param int $pageID
+	 * @todo(rnix) refactor deleting cargo table data and page data to their own functions
+	 */
+	public static function deletePageFromSystem( $pageID ) {
+		// We'll delete every reference to this page in the
+		// Cargo tables - in the data tables as well as in
+		// cargo_pages. (Though we need the latter to be able to
+		// efficiently delete from the former.)
+
+		// Get all the "main" tables that this page is contained in.
+		$dbw = wfGetDB( DB_MASTER );
+		$cdb = CargoUtils::getDB();
+		$cdbPageIDCheck = [ $cdb->addIdentifierQuotes( '_pageID' ) => $pageID ];
+
+		$tableNames = [];
+		$res = $dbw->select( 'cargo_pages', 'table_name', [ 'page_id' => $pageID ] );
+		while ( $row = $dbw->fetchRow( $res ) ) {
+			$tableNames[] = $row['table_name'];
+		}
+
+		foreach ( $tableNames as $curMainTable ) {
+			if ( $cdb->tableExists( $curMainTable . '__NEXT' ) ) {
+				// It's a "read-only" table - ignore.
+				continue;
+			}
+
+			// First, delete from the "field" tables.
+			$res2 = $dbw->select( 'cargo_tables', 'field_tables', [ 'main_table' => $curMainTable ] );
+			$row2 = $dbw->fetchRow( $res2 );
+			$fieldTableNames = unserialize( $row2['field_tables'] );
+			if ( is_array( $fieldTableNames ) ) {
+				foreach ( $fieldTableNames as $curFieldTable ) {
+					// Thankfully, the MW DB API already provides a
+					// nice method for deleting based on a join.
+					$cdb->deleteJoin(
+						$curFieldTable,
+						$curMainTable,
+						$cdb->addIdentifierQuotes( '_rowID' ),
+						$cdb->addIdentifierQuotes( '_ID' ),
+						$cdbPageIDCheck
+					);
+				}
+			}
+
+			// Delete from the "files" helper table, if it exists.
+			$curFilesTable = $curMainTable . '___files';
+			if ( $cdb->tableExists( $curFilesTable ) ) {
+				$cdb->delete( $curFilesTable, $cdbPageIDCheck );
+			}
+
+			// Now, delete from the "main" table.
+			$cdb->delete( $curMainTable, $cdbPageIDCheck );
+		}
+
+		if ( $dbw->selectRowCount( 'cargo_tables', 'field_tables', [ 'main_table' => '_pageData' ] ) > 0 ) {
+			$cdb->delete( '_pageData', $cdbPageIDCheck );
+		}
+	}
+
+	public static function endTransaction() {
+		if ( !self::$inTransaction ) {
+			return;
+		}
+
+		$cdb = CargoUtils::getDB();
+		$cdb->rollback();
+		self::$inTransaction = false;
 	}
 }
