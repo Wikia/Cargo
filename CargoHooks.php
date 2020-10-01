@@ -260,7 +260,6 @@ class CargoHooks {
 
 		if ( self::$parseDepth > 1 ) {
 			wfDebugLog( 'cargo', 'ContentGetParserOutput called recursively' );
-			return;
 		}
 	}
 
