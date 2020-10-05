@@ -149,76 +149,6 @@ class CargoHooks {
 	}
 
 	/**
-	 * Deletes all Cargo data for a specific page - *except* data
-	 * contained in Cargo tables which are read-only because their
-	 * "replacement table" exists.
-	 *
-	 * @param int $pageID
-	 * @todo - move this to a different class, like CargoUtils?
-	 */
-	public static function deletePageFromSystem( $pageID ) {
-		// We'll delete every reference to this page in the
-		// Cargo tables - in the data tables as well as in
-		// cargo_pages. (Though we need the latter to be able to
-		// efficiently delete from the former.)
-
-		// Get all the "main" tables that this page is contained in.
-		$dbw = wfGetDB( DB_MASTER );
-		$cdb = CargoUtils::getDB();
-		$cdb->begin();
-		$cdbPageIDCheck = [ $cdb->addIdentifierQuotes( '_pageID' ) => $pageID ];
-
-		$tableNames = [];
-		$res = $dbw->select( 'cargo_pages', 'table_name', [ 'page_id' => $pageID ] );
-		while ( $row = $dbw->fetchRow( $res ) ) {
-			$tableNames[] = $row['table_name'];
-		}
-
-		foreach ( $tableNames as $curMainTable ) {
-			if ( $cdb->tableExists( $curMainTable . '__NEXT' ) ) {
-				// It's a "read-only" table - ignore.
-				continue;
-			}
-
-			// First, delete from the "field" tables.
-			$res2 = $dbw->select( 'cargo_tables', 'field_tables', [ 'main_table' => $curMainTable ] );
-			$row2 = $dbw->fetchRow( $res2 );
-			$fieldTableNames = unserialize( $row2['field_tables'] );
-			if ( is_array( $fieldTableNames ) ) {
-				foreach ( $fieldTableNames as $curFieldTable ) {
-					// Thankfully, the MW DB API already provides a
-					// nice method for deleting based on a join.
-					$cdb->deleteJoin(
-						$curFieldTable,
-						$curMainTable,
-						$cdb->addIdentifierQuotes( '_rowID' ),
-						$cdb->addIdentifierQuotes( '_ID' ),
-						$cdbPageIDCheck
-					);
-				}
-			}
-
-			// Delete from the "files" helper table, if it exists.
-			$curFilesTable = $curMainTable . '___files';
-			if ( $cdb->tableExists( $curFilesTable ) ) {
-				$cdb->delete( $curFilesTable, $cdbPageIDCheck );
-			}
-
-			// Now, delete from the "main" table.
-			$cdb->delete( $curMainTable, $cdbPageIDCheck );
-		}
-
-		if ( $dbw->selectRowCount( 'cargo_tables', 'field_tables', [ 'main_table' => '_pageData' ] ) > 0 ) {
-			$cdb->delete( '_pageData', $cdbPageIDCheck );
-		}
-
-		// End transaction and apply DB changes.
-		$dbw->delete( 'cargo_pages', [ 'page_id' => $pageID ] );
-
-		$cdb->commit();
-	}
-
-	/**
 	 * LinksUpdate hook handler which does the actual writes to cargo tables
 	 * for any #cargo_store calls on the parsed page.
 	 *
@@ -227,7 +157,8 @@ class CargoHooks {
 	public static function onLinksUpdate( LinksUpdate &$linksUpdate ) {
 		$title = $linksUpdate->getTitle();
 		$parserOutput = $linksUpdate->getParserOutput();
-		CargoUtils::commitStoresForPage( $title, $parserOutput );
+		$page = new CargoPage( $title );
+		$page->storeData( $title, $parserOutput );
 		return true;
 	}
 
@@ -343,9 +274,18 @@ class CargoHooks {
 	/**
 	 * Deletes all Cargo data about a page, if the page has been deleted.
 	 */
-	public static function onArticleDeleteComplete( &$article, User &$user, $reason, $id, $content,
-		$logEntry ) {
-		CargoUtils::deletePageFromSystem( $id );
+	public static function onArticleDeleteComplete(
+		&$article, User &$user, $reason, $id, $content,
+		ManualLogEntry $logEntry
+	) {
+		$cdb = CargoDatabase::get();
+		$cdb->begin();
+		$title = $logEntry->getTarget();
+		$cargoPage = new CargoPage( $title );
+		$cargoPage->deleteCargoTableData( true );
+		$pageDataTable = new CargoPageDataTable();
+		$pageDataTable->deleteDataForPage( $cargoPage );
+		$cdb->commit();
 		return true;
 	}
 
@@ -355,121 +295,20 @@ class CargoHooks {
 	 * Updates a file's entry in the _fileData table if it has been
 	 * uploaded or re-uploaded.
 	 *
-	 * @param Image $image
+	 * @param UploadBase $upload
 	 * @return bool true
 	 */
-	public static function onUploadComplete( $image ) {
+	public static function onUploadComplete( $upload ) {
 		$cdb = CargoUtils::getDB();
-		if ( !$cdb->tableExists( '_fileData' ) ) {
-			return true;
-		}
+		$cdb->begin( __METHOD__ );
 
-		$title = $image->getLocalFile()->getTitle();
-		$useReplacementTable = $cdb->tableExists( '_fileData__NEXT' );
-		$pageID = $title->getArticleID();
-		$cdbPageIDCheck = [ $cdb->addIdentifierQuotes( '_pageID' ) => $pageID ];
-		$fileDataTable = $useReplacementTable ? '_fileData__NEXT' : '_fileData';
-		$cdb->delete( $fileDataTable, $cdbPageIDCheck );
-		CargoFileData::storeValuesForFile( $title, $useReplacementTable );
-		return true;
-	}
+		// @todo(rnix): awkward
+		$table = new CargoFileDataTable();
+		$page = new CargoPage( $upload->getTitle() );
+		$table->deleteDataForPage( $page );
+		$table->storeDataForPage( $page, new ParserOutput() );
 
-	/**
-	 * Called by the MediaWiki 'CategoryAfterPageAdded' hook.
-	 *
-	 * @param Category $category
-	 * @param WikiPage $wikiPage
-	 */
-	public static function addCategoryToPageData( $category, $wikiPage ) {
-		self::addOrRemoveCategoryData( $category, $wikiPage, true );
-	}
-
-	/**
-	 * Called by the MediaWiki 'CategoryAfterPageRemoved' hook.
-	 *
-	 * @param Category $category
-	 * @param WikiPage $wikiPage
-	 */
-	public static function removeCategoryFromPageData( $category, $wikiPage ) {
-		self::addOrRemoveCategoryData( $category, $wikiPage, false );
-	}
-
-	/**
-	 * We use hooks to modify the _categories field in _pageData, instead of
-	 * saving it on page save as is done with all other fields (in _pageData
-	 * and elsewhere), because the categories information is often not set
-	 * until after the page has already been saved, due to the use of jobs.
-	 * We can use the same function for both adding and removing categories
-	 * because it's almost the same code either way.
-	 * If anything gets messed up in this process, the data can be recreated
-	 * by calling setCargoPageData.php.
-	 */
-	public static function addOrRemoveCategoryData( $category, $wikiPage, $isAdd ) {
-		global $wgCargoPageDataColumns;
-		if ( !in_array( 'categories', $wgCargoPageDataColumns ) ) {
-			return true;
-		}
-
-		$cdb = CargoUtils::getDB();
-
-		// We need to make sure that the "categories" field table
-		// already exists, because we're only modifying it here, not
-		// creating it.
-		if ( $cdb->tableExists( '_pageData__NEXT___categories' ) ) {
-			$pageDataTable = '_pageData__NEXT';
-		} elseif ( $cdb->tableExists( '_pageData___categories' ) ) {
-			$pageDataTable = '_pageData';
-		} else {
-			return true;
-		}
-		$categoriesTable = $pageDataTable . '___categories';
-		$categoryName = $category->getName();
-		$pageID = $wikiPage->getId();
-
-		$cdb = CargoUtils::getDB();
-		$cdb->begin();
-		$res = $cdb->select( $pageDataTable, '_ID', [ '_pageID' => $pageID ] );
-		if ( $cdb->numRows( $res ) == 0 ) {
-			$cdb->commit();
-			return true;
-		}
-		$row = $res->fetchRow();
-		$rowID = $row['_ID'];
-		$categoriesForPage = [];
-		$res2 = $cdb->select( $categoriesTable, '_value',  [ '_rowID' => $rowID ] );
-		while ( $row2 = $res2->fetchRow() ) {
-			$categoriesForPage[] = $row2['_value'];
-		}
-		$categoryAlreadyListed = in_array( $categoryName, $categoriesForPage );
-		// This can be done with a NOT XOR (i.e. XNOR), but let's not make it more confusing.
-		if ( ( $isAdd && $categoryAlreadyListed ) || ( !$isAdd && !$categoryAlreadyListed ) ) {
-			$cdb->commit();
-			return true;
-		}
-
-		// The real operation is here.
-		if ( $isAdd ) {
-			$categoriesForPage[] = $categoryName;
-		} else {
-			foreach ( $categoriesForPage as $i => $cat ) {
-				if ( $cat == $categoryName ) {
-					unset( $categoriesForPage[$i] );
-				}
-			}
-		}
-		$newCategoriesFull = implode( '|', $categoriesForPage );
-		$cdb->update( $pageDataTable, [ '_categories__full' => $newCategoriesFull ], [ '_pageID' => $pageID ] );
-		if ( $isAdd ) {
-			$res3 = $cdb->select( $categoriesTable, 'MAX(_position) as MaxPosition',  [ '_rowID' => $rowID ] );
-			$row3 = $res3->fetchRow();
-			$maxPosition = $row3['MaxPosition'];
-			$cdb->insert( $categoriesTable, [ '_rowID' => $rowID, '_value' => $categoryName, '_position' => $maxPosition + 1 ] );
-		} else {
-			$cdb->delete( $categoriesTable, [ '_rowID' => $rowID, '_value' => $categoryName ] );
-		}
-
-		// End transaction and apply DB changes.
-		$cdb->commit();
+		$cdb->commit( __METHOD__ );
 		return true;
 	}
 

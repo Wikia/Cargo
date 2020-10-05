@@ -87,8 +87,8 @@
 		"CargoCompoundQuery": "includes/parserfunctions/CargoCompoundQuery.php",
 		"CargoSQLQuery": "includes/CargoSQLQuery.php",
 		"CargoQueryDisplayer": "includes/CargoQueryDisplayer.php",
-		"CargoPageData": "includes/CargoPageData.php",
-		"CargoFileData": "includes/CargoFileData.php",
+		"CargoPageDataTable": "includes/CargoPageDataTable.php",
+		"CargoFileDataTable": "includes/CargoFileDataTable.php",
 		"CargoBPMNData": "includes/CargoBPMNData.php",
 		"CargoGanttData": "includes/CargoGanttData.php",
 		"CargoRecurringEvent": "includes/parserfunctions/CargoRecurringEvent.php",
@@ -331,8 +331,6 @@
 		"TitleMoveCompleting": "CargoHooks::onTitleMoveCompleting",
 		"ArticleDeleteComplete": "CargoHooks::onArticleDeleteComplete",
 		"UploadComplete": "CargoHooks::onUploadComplete",
-		"CategoryAfterPageAdded": "CargoHooks::addCategoryToPageData",
-		"CategoryAfterPageRemoved": "CargoHooks::removeCategoryFromPageData",
 		"LoadExtensionSchemaUpdates": [
 			"CargoHooks::describeDBSchema",
 			"CargoHooks::cargoSchemaUpdates"

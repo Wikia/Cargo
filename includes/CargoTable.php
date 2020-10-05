@@ -20,8 +20,24 @@ class CargoTable {
 	/**
 	 * @return string
 	 */
+	public function getTableName() {
+		return $this->mName;
+	}
+
+	/**
+	 * @return string
+	 */
 	public function getReplacementTableName() {
 		return $this->mName . '__NEXT';
+	}
+
+	/**
+	 * @return string
+	 */
+	public function getTableNameForUpdate() {
+		return $this->isReadOnly()
+			? $this->getReplacementTableName()
+			: $this->getTableName();
 	}
 
 	/**
@@ -29,7 +45,7 @@ class CargoTable {
 	 */
 	public function exists() {
 		$cdb = CargoUtils::getDB();
-		return $cdb->tableExists( $this->mName );
+		return $cdb->tableExists( $this->getTableName(), __METHOD__ );
 	}
 
 	/**
@@ -45,19 +61,42 @@ class CargoTable {
 		return $this->exists();
 	}
 
+	public function storeDataForPage( CargoPage $page, ParserOutput $parserOutput ) {
+	}
+
+	/**
+	 * Gets the current schema for this table.
+	 *
+	 * @return CargoTableSchema|null
+	 */
+	public function getSchema( $forUpdate = false ) {
+		$dbw = wfGetDB( DB_MASTER );
+		$tableName = $forUpdate
+			? $this->getTableNameForUpdate()
+			: $this->getTableName();
+		$res = $dbw->selectField( 'cargo_tables', 'table_schema', [ 'main_table' => $tableName ], __METHOD__ );
+		return $res ? CargoTableSchema::newFromDBString( $res ) : null;
+	}
+
 	/**
 	 * @return string[]
 	 */
 	private function getFieldTables() {
 		$dbw = wfGetDB( DB_MASTER );
-		$res = $dbw->selectField( 'cargo_tables', 'field_tables', [ 'main_table' => $this->mName ] );
-		return unserialize( $res ) ?? [];
+		$res = $dbw->selectField( 'cargo_tables', 'field_tables', [ 'main_table' => $this->mName ], __METHOD__ );
+		return unserialize( $res ) ?: [];
 	}
 
 	public function deleteDataForPage( CargoPage $page ) {
-		if ( $this->isReadOnly() ) {
+		if ( !$this->exists() ) {
 			return;
 		}
+
+		if ( $page->getID() == 0 ) {
+			return;
+		}
+
+		$tableName = $this->getTableNameForUpdate();
 
 		$cdb = CargoDatabase::get();
 		$cdbPageIDCheck = [ $cdb->addIdentifierQuotes( '_pageID' ) => $page->getID() ];
@@ -69,21 +108,22 @@ class CargoTable {
 			// nice method for deleting based on a join.
 			$cdb->deleteJoin(
 				$curFieldTable,
-				$this->mName,
+				$tableName,
 				$cdb->addIdentifierQuotes( '_rowID' ),
 				$cdb->addIdentifierQuotes( '_ID' ),
-				$cdbPageIDCheck
+				$cdbPageIDCheck,
+				__METHOD__
 			);
 		}
 
 		// Delete from the "files" helper table, if it exists.
-		$curFilesTable = $this->mName . '___files';
-		if ( $cdb->tableExists( $curFilesTable ) ) {
-			$cdb->delete( $curFilesTable, $cdbPageIDCheck );
+		$curFilesTable = $tableName . '___files';
+		if ( $cdb->tableExists( $curFilesTable, __METHOD__ ) ) {
+			$cdb->delete( $curFilesTable, $cdbPageIDCheck, __METHOD__ );
 		}
 
 		// Now, delete from the "main" table.
-		$cdb->delete( $this->mName, $cdbPageIDCheck );
+		$cdb->delete( $tableName, $cdbPageIDCheck, __METHOD__ );
 	}
 
 	/**
@@ -92,6 +132,7 @@ class CargoTable {
 	 * @return bool
 	 */
 	public function isReadOnly() {
-		return false;
+		$cdb = CargoUtils::getDB();
+		return $cdb->tableExists( $this->getReplacementTableName(), __METHOD__ );
 	}
 }

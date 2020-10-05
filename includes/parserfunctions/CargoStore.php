@@ -31,7 +31,6 @@ class CargoStore {
 		// Get page-related information early on, so we can exit
 		// quickly if there's a problem.
 		$title = $parser->getTitle();
-		$pageID = $title->getArticleID();
 
 		$params = func_get_args();
 		array_shift( $params ); // we already know the $parser...
@@ -68,27 +67,20 @@ class CargoStore {
 
 		self::beginTransaction( $parser->getTitle() );
 
-		$origTableName = $tableName;
-
-		// Always store data in the replacement table if it exists.
-		$cdb = CargoUtils::getDB();
-		if ( $cdb->tableExists( $tableName . '__NEXT' ) ) {
-			$tableName .= '__NEXT';
-		}
-
-		// Get the declaration of the table.
-		$dbw = wfGetDB( DB_MASTER );
-		$res = $dbw->select( 'cargo_tables', 'table_schema', [ 'main_table' => $tableName ] );
-		$row = $dbw->fetchRow( $res );
-		if ( $row == '' ) {
+		$table = new CargoTable( $tableName );
+		$tableSchema = $table->getSchema( true );
+		if ( $tableSchema == null ) {
 			// This table probably has not been created yet -
 			// just exit silently.
 			wfDebugLog( 'cargo', "CargoStore::run() - skipping; Cargo table ($tableName) does not exist.\n" );
 			return;
 		}
-		$tableSchema = CargoTableSchema::newFromDBString( $row['table_schema'] );
 
 		$parserOutput = $parser->getOutput();
+
+		$cdb = CargoDatabase::get();
+		// Always store data in the replacement table if it exists.
+		$tableName = $table->getTableNameForUpdate();
 		$errors = self::blankOrRejectBadData( $cdb, $title, $tableName, $tableFieldValues, $tableSchema );
 		if ( $errors ) {
 			$parser->addTrackingCategory( 'cargo-store-error-tracking-category' );
@@ -107,10 +99,7 @@ class CargoStore {
 		}
 
 		$cargoStorage = $parserOutput->getExtensionData( 'CargoStorage' ) ?? [];
-		$cargoStorage[] = [
-			'tableName' => $tableName,
-			'tableFieldValues' => $tableFieldValues,
-		];
+		$cargoStorage[$table->getTableName()][] = $tableFieldValues;
 		$parserOutput->setExtensionData( 'CargoStorage', $cargoStorage );
 	}
 
@@ -588,81 +577,9 @@ class CargoStore {
 		$cdb->begin();
 		self::$inTransaction = true;
 
-		$pageID = $title->getArticleID();
-		if ( $pageID <= 0 ) {
-			// e.g. when creating a new page.
-			return;
-		}
-		self::deletePageFromSystem( $pageID );
-
-		$useReplacementTable = $cdb->tableExists( '_pageData__NEXT' );
-		CargoPageData::storeValuesForPage( $title, $useReplacementTable, false );
-		$useReplacementTable = $cdb->tableExists( '_fileData__NEXT' );
-		CargoFileData::storeValuesForFile( $title, $useReplacementTable );
-	}
-
-	/**
-	 * Deletes all Cargo data for a specific page - *except* data
-	 * contained in Cargo tables which are read-only because their
-	 * "replacement table" exists.
-	 *
-	 * @param int $pageID
-	 * @todo(rnix) refactor deleting cargo table data and page data to their own functions
-	 */
-	public static function deletePageFromSystem( $pageID ) {
-		// We'll delete every reference to this page in the
-		// Cargo tables - in the data tables as well as in
-		// cargo_pages. (Though we need the latter to be able to
-		// efficiently delete from the former.)
-
-		// Get all the "main" tables that this page is contained in.
-		$dbw = wfGetDB( DB_MASTER );
-		$cdb = CargoUtils::getDB();
-		$cdbPageIDCheck = [ $cdb->addIdentifierQuotes( '_pageID' ) => $pageID ];
-
-		$tableNames = [];
-		$res = $dbw->select( 'cargo_pages', 'table_name', [ 'page_id' => $pageID ] );
-		while ( $row = $dbw->fetchRow( $res ) ) {
-			$tableNames[] = $row['table_name'];
-		}
-
-		foreach ( $tableNames as $curMainTable ) {
-			if ( $cdb->tableExists( $curMainTable . '__NEXT' ) ) {
-				// It's a "read-only" table - ignore.
-				continue;
-			}
-
-			// First, delete from the "field" tables.
-			$res2 = $dbw->select( 'cargo_tables', 'field_tables', [ 'main_table' => $curMainTable ] );
-			$row2 = $dbw->fetchRow( $res2 );
-			$fieldTableNames = unserialize( $row2['field_tables'] );
-			if ( is_array( $fieldTableNames ) ) {
-				foreach ( $fieldTableNames as $curFieldTable ) {
-					// Thankfully, the MW DB API already provides a
-					// nice method for deleting based on a join.
-					$cdb->deleteJoin(
-						$curFieldTable,
-						$curMainTable,
-						$cdb->addIdentifierQuotes( '_rowID' ),
-						$cdb->addIdentifierQuotes( '_ID' ),
-						$cdbPageIDCheck
-					);
-				}
-			}
-
-			// Delete from the "files" helper table, if it exists.
-			$curFilesTable = $curMainTable . '___files';
-			if ( $cdb->tableExists( $curFilesTable ) ) {
-				$cdb->delete( $curFilesTable, $cdbPageIDCheck );
-			}
-
-			// Now, delete from the "main" table.
-			$cdb->delete( $curMainTable, $cdbPageIDCheck );
-		}
-
-		if ( $dbw->selectRowCount( 'cargo_tables', 'field_tables', [ 'main_table' => '_pageData' ] ) > 0 ) {
-			$cdb->delete( '_pageData', $cdbPageIDCheck );
-		}
+		// Delete rows for the page from cargo tables to avoid duplicating data.
+		$page = new CargoPage( $title );
+		$page->deleteCargoTableData( false );
 	}
 
 	public static function endTransaction() {

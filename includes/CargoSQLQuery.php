@@ -604,9 +604,9 @@ class CargoSQLQuery {
 			// corresponding field.
 			$useListTable = ( $fieldName == '_value' );
 			if ( $useListTable ) {
-				if ( $tableName != null ) {
+				if ( !empty( $tableName ) ) {
 					$tableNameSplit = explode( '__', $tableName, 2 );
-					if ( count ( $tableNameSplit == 2 ) ) {
+					if ( count ( $tableNameSplit ) == 2 ) {
 						list( $tableName, $fieldName ) = $tableNameSplit;
 					}
 				} else {

@@ -1,18 +1,13 @@
 <?php
 
-/**
- * Static functions for dealing with the "_fileData" table.
- *
- * @author Yaron Koren
- */
-class CargoFileData {
+use MediaWiki\MediaWikiServices;
 
-	/**
-	 * Set the schema based on what has been entered in LocalSettings.php.
-	 *
-	 * @return CargoTableSchema
-	 */
-	public static function getTableSchema() {
+class CargoFileDataTable extends CargoTable {
+	public function __construct() {
+		parent::__construct( '_fileData' );
+	}
+
+	public static function getSchemaForCreation() {
 		global $wgCargoFileDataColumns;
 
 		$fieldTypes = [];
@@ -53,13 +48,10 @@ class CargoFileData {
 		return $tableSchema;
 	}
 
-	/**
-	 * @param Title|null $title
-	 * @param bool $createReplacement
-	 */
-	public static function storeValuesForFile( $title, $createReplacement ) {
-		global $wgCargoFileDataColumns, $wgLocalFileRepo;
+	public function storeDataForPage( CargoPage $page, ParserOutput $parserOutput ) {
+		global $wgCargoPDFToText, $wgCargoPDFInfo;
 
+		$title = $page->getTitle();
 		if ( $title == null ) {
 			return;
 		}
@@ -69,36 +61,32 @@ class CargoFileData {
 			return;
 		}
 
-		$fileDataTable = $createReplacement ? '_fileData__NEXT' : '_fileData';
-
-		// If there is no _fileData table, getTableSchemas() will
-		// throw an error.
-		try {
-			$tableSchemas = CargoUtils::getTableSchemas( [ $fileDataTable ] );
-		} catch ( MWException $e ) {
+		$tableSchema = $this->getSchema( true );
+		if ( $tableSchema == null ) {
 			return;
 		}
 
-		$repo = new LocalRepo( $wgLocalFileRepo );
-		$file = LocalFile::newFromTitle( $title, $repo );
+		$localRepo = RepoGroup::singleton()->getLocalRepo();
+		$file = $localRepo->findFile( $title );
+		if ( !$file ) {
+			return;
+		}
 
 		$fileDataValues = [];
 
-		if ( in_array( 'mediaType', $wgCargoFileDataColumns ) ) {
+		if ( $tableSchema->hasField( '_mediaType' ) ) {
 			$fileDataValues['_mediaType'] = $file->getMimeType();
 		}
 
-		if ( in_array( 'path', $wgCargoFileDataColumns ) ) {
+		if ( $tableSchema->hasField( '_path' ) ) {
 			$fileDataValues['_path'] = $file->getLocalRefPath();
 		}
 
-		if ( in_array( 'lastUploadDate', $wgCargoFileDataColumns ) ) {
+		if ( $tableSchema->hasField( '_lastUploadDate' ) ) {
 			$fileDataValues['_lastUploadDate'] = $file->getTimestamp();
 		}
 
-		if ( in_array( 'fullText', $wgCargoFileDataColumns ) ) {
-			global $wgCargoPDFToText;
-
+		if ( $tableSchema->hasField( '_fullText' ) ) {
 			if ( $wgCargoPDFToText == '' ) {
 				// Display an error message?
 			} elseif ( $file->getMimeType() != 'application/pdf' ) {
@@ -117,8 +105,7 @@ class CargoFileData {
 			}
 		}
 
-		if ( in_array( 'numPages', $wgCargoFileDataColumns ) ) {
-			global $wgCargoPDFInfo;
+		if ( $tableSchema->hasField( '_numPages' ) ) {
 			if ( $wgCargoPDFInfo == '' ) {
 				// Display an error message?
 			} elseif ( $file->getMimeType() != 'application/pdf' ) {
@@ -138,7 +125,10 @@ class CargoFileData {
 			}
 		}
 
-		CargoStore::storeAllData( $title, $fileDataTable, $fileDataValues, $tableSchemas[$fileDataTable] );
-	}
+		$fileDataTable = $this->isReadOnly()
+			? $this->getReplacementTableName()
+			: $this->getTableName();
 
+		CargoStore::storeAllData( $title, $fileDataTable, $fileDataValues, $tableSchema );
+	}
 }

@@ -37,4 +37,7 @@ class CargoTableSchema {
 		unset( $this->mFieldDescriptions[$fieldName] );
 	}
 
+	public function hasField( $fieldName ) {
+		return isset( $this->mFieldDescriptions[$fieldName] );
+	}
 }
