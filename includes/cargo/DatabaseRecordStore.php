@@ -1,216 +1,41 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
+namespace Cargo;
 
-/**
- * Class for the #cargo_store function.
- *
- * @author Yaron Koren
- * @ingroup Cargo
- */
+use CargoUtils;
+use Hooks;
+use MWException;
+use ParserOutput;
+use Status;
+use Title;
+use Wikimedia\Rdbms\IDatabase;
 
-class CargoStore {
-
-	public static $inTransaction = false;
-
+class DatabaseRecordStore implements RecordStore {
 	const DATE_AND_TIME = 0;
 	const DATE_ONLY = 1;
 	const MONTH_ONLY = 2;
 	const YEAR_ONLY = 3;
 
-	/**
-	 * Handles the #cargo_store parser function - saves data for one
-	 * template call.
-	 *
-	 * @global string $wgCargoDigitGroupingCharacter
-	 * @global string $wgCargoDecimalMark
-	 * @param Parser &$parser
-	 * @throws MWException
-	 */
-	public static function run( &$parser ) {
-		// Get page-related information early on, so we can exit
-		// quickly if there's a problem.
-		$title = $parser->getTitle();
+	private $databaseFactory;
 
-		$params = func_get_args();
-		array_shift( $params ); // we already know the $parser...
+	private $tableFactory;
 
-		$tableName = null;
-		$tableFieldValues = [];
+	public function __construct( DatabaseFactory $databaseFactory, CargoTableFactory $tableFactory ) {
+		$this->databaseFactory = $databaseFactory;
+		$this->tableFactory = $tableFactory;
+	}
 
-		foreach ( $params as $param ) {
-			$parts = explode( '=', $param, 2 );
+	public function storeRecord( CargoPage $page, Record $record ): Status {
+		$pageID = $page->getID();
+		$pageName = $page->getName();
+		$pageTitle = $page->getTitle();
+		$pageNamespace = $page->getNamespace();
 
-			if ( count( $parts ) != 2 ) {
-				continue;
-			}
-			$key = trim( $parts[0] );
-			$value = trim( $parts[1] );
-			if ( $key == '_table' ) {
-				$tableName = $value;
-			} else {
-				$fieldName = $key;
-				// Since we don't know whether any empty
-				// value is meant to be blank or null, let's
-				// go with null.
-				if ( $value == '' ) {
-					$value = null;
-				}
-				$fieldValue = $value;
-				$tableFieldValues[$fieldName] = $fieldValue;
-			}
-		}
-
-		if ( $tableName == '' ) {
-			return;
-		}
-
-		self::beginTransaction( $parser->getTitle() );
-
-		$table = new CargoTable( $tableName );
+		$table = $this->tableFactory->get( $record->getTable() );
 		$tableSchema = $table->getSchema( true );
-		if ( $tableSchema == null ) {
-			// This table probably has not been created yet -
-			// just exit silently.
-			wfDebugLog( 'cargo', "CargoStore::run() - skipping; Cargo table ($tableName) does not exist.\n" );
-			return;
-		}
-
-		$parserOutput = $parser->getOutput();
-
-		$cdb = CargoDatabase::get();
-		// Always store data in the replacement table if it exists.
 		$tableName = $table->getTableNameForUpdate();
-		$errors = self::blankOrRejectBadData( $cdb, $title, $tableName, $tableFieldValues, $tableSchema );
-		if ( $errors ) {
-			$parser->addTrackingCategory( 'cargo-store-error-tracking-category' );
-			$parserOutput->setProperty( 'CargoStorageError', $errors );
-			wfDebugLog( 'cargo', "CargoStore::run() - skipping; storage error encountered.\n" );
-			return;
-		}
 
-		try {
-			self::storeAllData( $title, $tableName, $tableFieldValues, $tableSchema );
-		} catch (Wikimedia\Rdbms\DBQueryError $err) {
-			// show the error
-			$parser->addTrackingCategory( 'cargo-store-error-tracking-category' );
-			$parserOutput->setProperty( 'CargoStorageError', $err->getMessage() );
-			return CargoUtils::formatError( $err->getMessage(), 'cargo-store-error' );
-		}
-
-		$cargoStorage = $parserOutput->getExtensionData( 'CargoStorage' ) ?? [];
-		$cargoStorage[$table->getTableName()][] = $tableFieldValues;
-		$parserOutput->setExtensionData( 'CargoStorage', $cargoStorage );
-	}
-
-	/**
-	 * Deal with data that is considered invalid, for one reason or
-	 * another. For the most part we simply ignore the data (if it's an
-	 * invalid field) or blank it (if it's an invalid value), but if it's
-	 * a mandatory value, we have no choice but to reject the whole row.
-	 */
-	public static function blankOrRejectBadData( $cdb, $title, $tableName, &$tableFieldValues, $tableSchema ) {
-		foreach ( $tableFieldValues as $fieldName => $fieldValue ) {
-			if ( !array_key_exists( $fieldName, $tableSchema->mFieldDescriptions ) ) {
-				unset( $tableFieldValues[$fieldName] );
-			}
-		}
-
-		foreach ( $tableSchema->mFieldDescriptions as $fieldName => $fieldDescription ) {
-			if ( !array_key_exists( $fieldName, $tableFieldValues ) ) {
-				continue;
-			}
-			$fieldValue = $tableFieldValues[$fieldName];
-			if ( $fieldDescription->mIsMandatory && $fieldValue == '' ) {
-				return "Mandatory field, \"$fieldName\", cannot have a blank value.";
-			}
-			if ( $fieldDescription->mIsUnique && $fieldValue != '' ) {
-				$res = $cdb->select( $tableName, 'COUNT(*)', [ $fieldName => $fieldValue ] );
-				$row = $cdb->fetchRow( $res );
-				$numExistingValues = $row['COUNT(*)'];
-				if ( $numExistingValues == 1 ) {
-					$rowAlreadyExists = self::doesRowAlreadyExist( $cdb, $title, $tableName, $tableFieldValues, $tableSchema );
-					if ( $rowAlreadyExists ) {
-						$numExistingValues = 0;
-					}
-				}
-				if ( $numExistingValues > 0 ) {
-					$tableFieldValues[$fieldName] = null;
-				}
-			}
-			if ( $fieldDescription->mRegex != null && !preg_match( '/^' . $fieldDescription->mRegex . '$/', $fieldValue ) ) {
-				$tableFieldValues[$fieldName] = null;
-			}
-		}
-	}
-
-	public static function getDateValueAndPrecision( $dateStr, $fieldType ) {
-		$precision = null;
-
-		// Special handling if it's just a year. If it's a number and
-		// less than 8 digits, assume it's a year (hey, it could be a
-		// very large BC year). If it's 8 digits, it's probably a full
-		// date in the form YYYYMMDD.
-		if ( ctype_digit( $dateStr ) && strlen( $dateStr ) < 8 ) {
-			// Add a fake date - it will get ignored later.
-			return [ "$dateStr-01-01", self::YEAR_ONLY ];
-		}
-
-		// Determine if there's a month but no day. There's no ideal
-		// way to do this, so: we'll just look for the total number of
-		// spaces, slashes and dashes, and if there's exactly one
-		// altogether, we'll guess that it's a month only.
-		$numSpecialChars = substr_count( $dateStr, ' ' ) +
-			substr_count( $dateStr, '/' ) + substr_count( $dateStr, '-' );
-		if ( $numSpecialChars == 1 ) {
-			// No need to add anything - PHP will set it to the
-			// first of the month.
-			$precision = self::MONTH_ONLY;
-		} else {
-			// We have at least a full date.
-			if ( $fieldType == 'Date' ) {
-				$precision = self::DATE_ONLY;
-			}
-		}
-
-		$seconds = strtotime( $dateStr );
-		// If the precision has already been set, then we know it
-		// doesn't include a time value - we can set the value already.
-		if ( $precision != null ) {
-			// Put into YYYY-MM-DD format.
-			return [ date( 'Y-m-d', $seconds ), $precision ];
-		}
-
-		// It's a Datetime field, which may or may not have a time -
-		// check for that now.
-		$datePortion = date( 'Y-m-d', $seconds );
-		$timePortion = date( 'G:i:s', $seconds );
-		// If it's not right at midnight, there's definitely a time
-		// there.
-		$precision = self::DATE_AND_TIME;
-		if ( $timePortion !== '0:00:00' ) {
-			return [ $datePortion . ' ' . $timePortion, $precision ];
-		}
-
-		// It's midnight, so chances are good that there was no time
-		// specified, but how do we know for sure?
-		// Slight @HACK - look for either "00" or "AM" (or "am") in the
-		// original date string. If neither one is there, there's
-		// probably no time.
-		if ( strpos( $dateStr, '00' ) === false &&
-			strpos( $dateStr, 'AM' ) === false &&
-			strpos( $dateStr, 'am' ) === false ) {
-			$precision = self::DATE_ONLY;
-		}
-		// Either way, we just need the date portion.
-		return [ $datePortion, $precision ];
-	}
-
-	public static function storeAllData( $title, $tableName, $tableFieldValues, $tableSchema ) {
-		$pageID = $title->getArticleID();
-		$pageName = $title->getPrefixedText();
-		$pageTitle = $title->getText();
-		$pageNamespace = $title->getNamespace();
+		$tableFieldValues = $record->getFieldValues();
 
 		// We're still here! Let's add to the DB table(s).
 		// First, though, let's do some processing:
@@ -226,6 +51,7 @@ class CargoStore {
 				continue;
 			}
 
+			// @todo(rnix): this logic belongs in CargoField or something
 			// Change from the format stored in the DB to the
 			// "real" one.
 			$fieldType = $fieldDescription->mType;
@@ -268,7 +94,7 @@ class CargoStore {
 						if ( $realIndividualVal == '' ) {
 							continue;
 						}
-						list( $dateValue, $precision ) = self::getDateValueAndPrecision( $realIndividualVal, $fieldType );
+						list( $dateValue, $precision ) = $this->getDateValueAndPrecision( $realIndividualVal, $fieldType );
 						$dateValues[] = $dateValue;
 						if ( $precision < $maxPrecision ) {
 							$maxPrecision = $precision;
@@ -277,7 +103,7 @@ class CargoStore {
 					$tableFieldValues[$fieldName] = implode( $delimiter, $dateValues );
 					$tableFieldValues[$fieldName . '__precision'] = $maxPrecision;
 				} else {
-					list( $dateValue, $precision ) = self::getDateValueAndPrecision( $curValue, $fieldType );
+					list( $dateValue, $precision ) = $this->getDateValueAndPrecision( $curValue, $fieldType );
 					$tableFieldValues[$fieldName] = $dateValue;
 					$tableFieldValues[$fieldName . '__precision'] = $precision;
 				}
@@ -317,26 +143,13 @@ class CargoStore {
 		$tableFieldValues['_pageID'] = $pageID;
 
 		// Allow other hooks to modify the values.
-		Hooks::run( 'CargoBeforeStoreData', [ $title, $tableName, &$tableSchema, &$tableFieldValues ] );
+		// @todo(rnix): does anything use this? hate instantiating a Title here...
+		Hooks::run( 'CargoBeforeStoreData', [ Title::newFromText( $pageName ), $tableName, &$tableSchema, &$tableFieldValues ] );
 
 		$cdb = CargoUtils::getDB();
 
-		// The _position field was only added to list tables in Cargo
-		// 2.1, which means that any list table last created or
-		// re-created before then will not have that field. How to know
-		// whether to populate that field? We go to the first list
-		// table for this main table (there may be more than one), and
-		// query INFORMATION_SCHEMA for that field.
-		$hasPositionField = true;
-		foreach ( $tableSchema->mFieldDescriptions as $fieldName => $fieldDescription ) {
-			if ( $fieldDescription->mIsList ) {
-				$listFieldTableName = $tableName . '__' . $fieldName;
-				$hasPositionField = $cdb->fieldExists( $listFieldTableName, '_position' );
-				break;
-			}
-		}
-
 		// Determine whether we're using AUTO_INCREMENT
+		// @todo(rnix): mssql/pgsql compat?
 		$row = $cdb->selectRow(
 			'INFORMATION_SCHEMA.TABLES',
 			'AUTO_INCREMENT',
@@ -357,6 +170,7 @@ class CargoStore {
 		} else {
 			$curRowID = null;
 		}
+
 		// Somewhat of a @HACK - recreating a Cargo table from the web
 		// interface can lead to duplicate rows, due to the use of jobs.
 		// So before we store this data, check if a row with this
@@ -368,9 +182,9 @@ class CargoStore {
 		// a very rare case, while unwanted code duplication is
 		// unfortunately a common case. So until there's a real
 		// solution, this workaround will be helpful.
-		$rowAlreadyExists = self::doesRowAlreadyExist( $cdb, $title, $tableName, $tableFieldValues, $tableSchema );
+		$rowAlreadyExists = $this->doesRowAlreadyExist( $cdb, $page, $record, $table );
 		if ( $rowAlreadyExists ) {
-			return;
+			return Status::newGood();
 		}
 
 		// The _position field was only added to list tables in Cargo
@@ -509,14 +323,121 @@ class CargoStore {
 				CargoUtils::escapedInsert( $cdb, $fileTableName, $fieldValues );
 			}
 		}
+
+		return Status::newGood();
 	}
 
-	/**
-	 * Determines whether a row with the specified set of values already exists in the
-	 * specified Cargo table.
-	 */
-	public static function doesRowAlreadyExist( $cdb, $title, $tableName, $tableFieldValues, $tableSchema ) {
-		$pageID = $title->getArticleID();
+	private function getDateValueAndPrecision( $dateStr, $fieldType ) {
+		$precision = null;
+
+		// Special handling if it's just a year. If it's a number and
+		// less than 8 digits, assume it's a year (hey, it could be a
+		// very large BC year). If it's 8 digits, it's probably a full
+		// date in the form YYYYMMDD.
+		if ( ctype_digit( $dateStr ) && strlen( $dateStr ) < 8 ) {
+			// Add a fake date - it will get ignored later.
+			return [ "$dateStr-01-01", self::YEAR_ONLY ];
+		}
+
+		// Determine if there's a month but no day. There's no ideal
+		// way to do this, so: we'll just look for the total number of
+		// spaces, slashes and dashes, and if there's exactly one
+		// altogether, we'll guess that it's a month only.
+		$numSpecialChars = substr_count( $dateStr, ' ' ) +
+			substr_count( $dateStr, '/' ) + substr_count( $dateStr, '-' );
+		if ( $numSpecialChars == 1 ) {
+			// No need to add anything - PHP will set it to the
+			// first of the month.
+			$precision = self::MONTH_ONLY;
+		} else {
+			// We have at least a full date.
+			if ( $fieldType == 'Date' ) {
+				$precision = self::DATE_ONLY;
+			}
+		}
+
+		$seconds = strtotime( $dateStr );
+		// If the precision has already been set, then we know it
+		// doesn't include a time value - we can set the value already.
+		if ( $precision != null ) {
+			// Put into YYYY-MM-DD format.
+			return [ date( 'Y-m-d', $seconds ), $precision ];
+		}
+
+		// It's a Datetime field, which may or may not have a time -
+		// check for that now.
+		$datePortion = date( 'Y-m-d', $seconds );
+		$timePortion = date( 'G:i:s', $seconds );
+		// If it's not right at midnight, there's definitely a time
+		// there.
+		$precision = self::DATE_AND_TIME;
+		if ( $timePortion !== '0:00:00' ) {
+			return [ $datePortion . ' ' . $timePortion, $precision ];
+		}
+
+		// It's midnight, so chances are good that there was no time
+		// specified, but how do we know for sure?
+		// Slight @HACK - look for either "00" or "AM" (or "am") in the
+		// original date string. If neither one is there, there's
+		// probably no time.
+		if ( strpos( $dateStr, '00' ) === false &&
+			strpos( $dateStr, 'AM' ) === false &&
+			strpos( $dateStr, 'am' ) === false ) {
+			$precision = self::DATE_ONLY;
+		}
+		// Either way, we just need the date portion.
+		return [ $datePortion, $precision ];
+	}
+
+	public function blankOrRejectBadData( CargoPage $page, Record $record ): Status {
+		$tableFieldValues = $record->getFieldValues();
+		$tableName = $record->getTable();
+		$table = $this->tableFactory->get( $tableName );
+		$tableSchema = $table->getSchema( true );
+
+		foreach ( $tableFieldValues as $fieldName => $fieldValue ) {
+			if ( !array_key_exists( $fieldName, $tableSchema->mFieldDescriptions ) ) {
+				unset( $tableFieldValues[$fieldName] );
+			}
+		}
+
+		$cdb = $this->databaseFactory->get();
+		foreach ( $tableSchema->mFieldDescriptions as $fieldName => $fieldDescription ) {
+			if ( !array_key_exists( $fieldName, $tableFieldValues ) ) {
+				continue;
+			}
+			$fieldValue = $tableFieldValues[$fieldName];
+			if ( $fieldDescription->mIsMandatory && $fieldValue == '' ) {
+				return "Mandatory field, \"$fieldName\", cannot have a blank value.";
+			}
+			if ( $fieldDescription->mIsUnique && $fieldValue != '' ) {
+				$res = $cdb->select( $tableName, 'COUNT(*)', [ $fieldName => $fieldValue ] );
+				$row = $cdb->fetchRow( $res );
+				$numExistingValues = $row['COUNT(*)'];
+				if ( $numExistingValues == 1 ) {
+					$rowAlreadyExists = $this->doesRowAlreadyExist( $cdb, $page, $record, $table );
+					if ( $rowAlreadyExists ) {
+						$numExistingValues = 0;
+					}
+				}
+				if ( $numExistingValues > 0 ) {
+					$tableFieldValues[$fieldName] = null;
+				}
+			}
+			if ( $fieldDescription->mRegex != null && !preg_match( '/^' . $fieldDescription->mRegex . '$/', $fieldValue ) ) {
+				$tableFieldValues[$fieldName] = null;
+			}
+		}
+
+		$record->setFieldValues( $tableFieldValues );
+
+		return Status::newGood();
+	}
+
+	private function doesRowAlreadyExist( IDatabase $cdb, CargoPage $page, Record $record, CargoTable $table ): bool {
+		$pageID = $page->getID();
+		$tableFieldValues = $record->getFieldValues();
+		$tableSchema = $table->getSchema( true );
 		$tableFieldValuesForCheck = [ $cdb->addIdentifierQuotes( '_pageID' ) => $pageID ];
 		foreach ( $tableSchema->mFieldDescriptions as $fieldName => $fieldDescription ) {
 			if ( !array_key_exists( $fieldName, $tableFieldValues ) ) {
@@ -556,9 +477,151 @@ class CargoStore {
 
 			$tableFieldValuesForCheck[$quotedFieldName] = $fieldValue;
 		}
-		$res = $cdb->select( $tableName, 'COUNT(*)', $tableFieldValuesForCheck );
-		$row = $cdb->fetchRow( $res );
-		return ( $row['COUNT(*)'] > 0 );
+		$count = $cdb->selectRowCount( $table->getTableNameForUpdate(), '*', $tableFieldValuesForCheck );
+		return $count > 0;
+	}
+
+	/**
+	 * Insert rows from calls to the #cargo_store parser function logged in the
+	 * parser output.
+	 *
+	 * @param ParserOutput $parserOutput
+	 */
+	public function storePageRecords( CargoPage $page ) {
+		$cdb = $this->getDatabase();
+		$cdb->begin( __METHOD__ );
+
+		$this->deleteCargoTableData( $page );
+
+		$pageDataTable = $this->getTable( '_pageData' );
+		$this->deletePageTableRecords( $page, $pageDataTable );
+		$this->storePageTableRecords( $page, $pageDataTable );
+
+		$parserOutput = $page->getParserOutput();
+		if ( $parserOutput == null ) {
+			$cdb->commit( __METHOD__ );
+			return;
+		}
+
+		$cargoStorage = $parserOutput->getExtensionData( 'CargoStorage' );
+		foreach ( array_keys( $cargoStorage ) as $tableName ) {
+			$table = $this->getTable( $tableName );
+			$this->storePageTableRecords( $page, $table );
+		}
+
+		$cdb->commit( __METHOD__ );
+	}
+
+	/**
+	 * Remove records stored by $page.
+	 */
+	public function deletePageRecords( CargoPage $page ) {
+		$cdb = $this->getDatabase();
+		$cdb->begin();
+		$this->deleteCargoPageTableData( $page );
+		$this->deleteCargoTableData( $page );
+		$cdb->commit();
+	}
+
+	public function deletePageTableRecords( CargoPage $page, CargoTable $table ) {
+		$cdb = $this->getDatabase();
+		$cdbPageIDCheck = [ $cdb->addIdentifierQuotes( '_pageID' ) => $page->getID() ];
+
+		$tableName = $table->getTableNameForUpdate();
+
+		// First, delete from the "field" tables.
+		$fieldTableNames = $table->getFieldTables();
+		foreach ( $fieldTableNames as $curFieldTable ) {
+			// Thankfully, the MW DB API already provides a
+			// nice method for deleting based on a join.
+			$cdb->deleteJoin(
+				$curFieldTable,
+				$tableName,
+				$cdb->addIdentifierQuotes( '_rowID' ),
+				$cdb->addIdentifierQuotes( '_ID' ),
+				$cdbPageIDCheck,
+				__METHOD__
+			);
+		}
+
+		// Delete from the "files" helper table, if it exists.
+		$curFilesTable = $tableName . '___files';
+		if ( $cdb->tableExists( $curFilesTable, __METHOD__ ) ) {
+			$cdb->delete( $curFilesTable, $cdbPageIDCheck, __METHOD__ );
+		}
+
+		// Now, delete from the "main" table.
+		$cdb->delete( $tableName, $cdbPageIDCheck, __METHOD__ );
+	}
+
+	public function storePageTableRecords( CargoPage $page, CargoTable $table ) {
+		$records = $table->getRecordsForPage( $page );
+
+		foreach ( $records as $record ) {
+			$this->storeRecord( $page, $record );
+		}
+	}
+
+	/**
+	 * Remove data in user cargo tables stored by this page.
+	 */
+	public function deleteCargoTableData( CargoPage $page ) {
+		$tables = $this->getTables( $page );
+		foreach ( $tables as $table ) {
+			$this->deletePageTableRecords( $page, $table );
+		}
+	}
+
+	/**
+	 * Remove data in the _pageData table stored by this page.
+	 */
+	public function deleteCargoPageTableData( CargoPage $page ) {
+		$pageDataTable = $this->getTable( '_pageData' );
+		$this->deletePageTableRecords( $page, $pageDataTable );
+	}
+
+	/**
+	 * @return CargoTable[]
+	 */
+	private function getTables( CargoPage $page ) {
+		$cdb = $this->getDatabase();
+		$tableNames = $cdb->selectFieldValues(
+			[ '_pageData', '_pageData___tables' ],
+			'_pageData___tables._value',
+			[
+				'_pageID' => $page->getID(),
+				'_pageData._ID = _pageData___tables._rowID',
+			],
+			__METHOD__
+		);
+		$tables = [];
+		foreach ( $tableNames as $tableName ) {
+			$tables[] = $this->getTable( $tableName );
+		}
+		return $tables;
+	}
+
+	/**
+	 * @var string $tableName
+	 * @return CargoTable
+	 */
+	private function getTable( string $tableName ): CargoTable {
+		return $this->tableFactory->get( $tableName );
+	}
+
+	private function getDatabase(): IDatabase {
+		return $this->databaseFactory->get();
+	}
+
+	public function storeFileData( CargoPage $page ) {
+		$cdb = $this->getDatabase();
+		$cdb->begin( __METHOD__ );
+
+		$table = $this->getTable( '_fileData' );
+		$this->deletePageTableRecords( $page, $table );
+		$this->storePageTableRecords( $page, $table );
+
+		$cdb->commit( __METHOD__ );
 	}
 
 	/**
@@ -568,27 +631,25 @@ class CargoStore {
 	 * first #cargo_store can vary depending on the data in the cargo tables
 	 * at the start of the parse.
 	 */
-	private static function beginTransaction( Title $title ) {
-		if ( self::$inTransaction ) {
+	public function beginTransaction( CargoPage $page, Record $record ) {
+		$cdb = $this->getDatabase();
+		if ( $cdb->trxLevel() ) {
 			return;
 		}
-
-		$cdb = CargoUtils::getDB();
-		$cdb->begin();
-		self::$inTransaction = true;
+		$cdb->begin( __METHOD__ );
 
 		// Delete rows for the page from cargo tables to avoid duplicating data.
-		$page = new CargoPage( $title );
-		$page->deleteCargoTableData( false );
+		$this->deleteCargoTableData( $page );
 	}
 
-	public static function endTransaction() {
-		if ( !self::$inTransaction ) {
+	/**
+	 * Rollback the database transaction at the end of a parse.
+	 */
+	public function endTransaction() {
+		$cdb = $this->getDatabase();
+		if ( !$cdb->trxLevel() ) {
 			return;
 		}
-
-		$cdb = CargoUtils::getDB();
-		$cdb->rollback();
-		self::$inTransaction = false;
+		$cdb->rollback( __METHOD__ );
 	}
 }

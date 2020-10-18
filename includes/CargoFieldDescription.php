@@ -1,5 +1,7 @@
 <?php
 
+use Cargo\CargoTable;
+
 /**
  * CargoFieldDescription - holds the attributes of a single field as defined
  * in the #cargo_declare parser function.
@@ -280,6 +282,8 @@ class CargoFieldDescription {
 			}
 		}
 
+		// @todo(rnix) why is any of this on CargoTable nee CargoStore?
+		// see todo above, zoranzoki got halfway there.
 		if ( $this->isDateOrDatetime() ) {
 			if ( $this->mIsList ) {
 				$delimiter = $this->getDelimiter();
@@ -288,14 +292,14 @@ class CargoFieldDescription {
 				// value per field, even if it holds more than
 				// one date - store the most "precise" of the
 				// precision values.
-				$maxPrecision = CargoStore::YEAR_ONLY;
+				$maxPrecision = CargoTable::YEAR_ONLY;
 				$dateValues = [];
 				foreach ( $individualValues as $individualValue ) {
 					$realIndividualVal = trim( $individualValue );
 					if ( $realIndividualVal == '' ) {
 						continue;
 					}
-					list( $dateValue, $curPrecision ) = CargoStore::getDateValueAndPrecision( $realIndividualVal, $fieldType );
+					list( $dateValue, $curPrecision ) = CargoTable::getDateValueAndPrecision( $realIndividualVal, $fieldType );
 					$dateValues[] = $dateValue;
 					if ( $curPrecision < $maxPrecision ) {
 						$maxPrecision = $curPrecision;
@@ -304,7 +308,7 @@ class CargoFieldDescription {
 				$newValue = implode( $delimiter, $dateValues );
 				$precision = $maxPrecision;
 			} else {
-				list( $newValue, $precision ) = CargoStore::getDateValueAndPrecision( $fieldValue, $fieldType );
+				list( $newValue, $precision ) = CargoTable::getDateValueAndPrecision( $fieldValue, $fieldType );
 			}
 		} elseif ( $fieldType == 'Integer' ) {
 			// Remove digit-grouping character.

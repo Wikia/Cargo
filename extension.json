@@ -74,21 +74,15 @@
 	"AutoloadClasses": {
 		"CargoHooks": "CargoHooks.php",
 		"CargoUtils": "includes/CargoUtils.php",
-		"CargoDatabase": "includes/CargoDatabase.php",
 		"CargoFieldDescription": "includes/CargoFieldDescription.php",
-		"CargoPage": "includes/CargoPage.php",
-		"CargoTable": "includes/CargoTable.php",
 		"CargoTableSchema": "includes/CargoTableSchema.php",
 		"CargoHierarchyTree": "includes/CargoHierarchyTree.php",
 		"CargoDeclare": "includes/parserfunctions/CargoDeclare.php",
 		"CargoAttach": "includes/parserfunctions/CargoAttach.php",
-		"CargoStore": "includes/parserfunctions/CargoStore.php",
 		"CargoQuery": "includes/parserfunctions/CargoQuery.php",
 		"CargoCompoundQuery": "includes/parserfunctions/CargoCompoundQuery.php",
 		"CargoSQLQuery": "includes/CargoSQLQuery.php",
 		"CargoQueryDisplayer": "includes/CargoQueryDisplayer.php",
-		"CargoPageDataTable": "includes/CargoPageDataTable.php",
-		"CargoFileDataTable": "includes/CargoFileDataTable.php",
 		"CargoBPMNData": "includes/CargoBPMNData.php",
 		"CargoGanttData": "includes/CargoGanttData.php",
 		"CargoRecurringEvent": "includes/parserfunctions/CargoRecurringEvent.php",
@@ -152,7 +146,12 @@
 		"CargoDrilldownUtils": "drilldown/CargoDrilldownUtils.php",
 		"CargoDrilldownHierarchy": "drilldown/CargoDrilldownHierarchy.php",
 		"CargoSpecialDrilldown": "drilldown/CargoSpecialDrilldown.php",
-		"CargoDrilldownPage": "drilldown/CargoDrilldownPage.php"
+		"CargoDrilldownPage": "drilldown/CargoDrilldownPage.php",
+		"UpdateCargoPageData": "maintenance/updateCargoPageData.php"
+	},
+	"AutoloadNamespaces": {
+		"Cargo\\": "includes/cargo/",
+		"Cargo\\Parser\\": "includes/cargo/parser/"
 	},
 	"ResourceModules": {
 		"ext.cargo.main": {
@@ -350,6 +349,9 @@
 		"ContentAlterParserOutput": "CargoHooks::onContentAlterParserOutput",
 		"LinksUpdate": "CargoHooks::onLinksUpdate"
 	},
+	"ServiceWiringFiles": [
+		"includes/ServiceWiring.php"
+	],
 	"TrackingCategories": [
 		"cargo-query-error-tracking-category",
 		"cargo-store-error-tracking-category"

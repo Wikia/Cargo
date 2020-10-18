@@ -40,7 +40,7 @@ class CargoTables extends IncludableSpecialPage {
 
 		if ( !CargoUtils::tableFullyExists( $tableName ) ) {
 			$out->addHTML( Html::element( 'div', [ 'class' => 'error' ],
-				$this->msg( "cargo-unknowntable", $tableName )->parse() ) );
+				$this->msg( 'cargo-unknowntable', $tableName )->text() ) );
 
 			return;
 		}
@@ -492,14 +492,14 @@ class CargoTables extends IncludableSpecialPage {
 
 		$headerText = Html::element( 'th', null, $this->msg( "cargo-cargotables-header-table" ) );
 		$headerText .= Html::element( 'th', null,
-			$this->msg( "cargo-cargotables-header-rowcount" ) );
+			$this->msg( 'cargo-cargotables-header-rowcount' ) );
 
 		foreach ( $listOfColumns as $action ) {
 			$headerText .= Html::rawElement( 'th', null, $this->getActionIcon( $action, null ) );
 		}
 
 		$headerText .= Html::element( 'th', null,
-			$this->msg( "cargo-cargotables-header-templates" ) );
+			$this->msg( 'cargo-cargotables-header-templates' ) );
 
 		$wikitableText = Html::rawElement( 'tr', null, $headerText );
 
@@ -561,7 +561,7 @@ class CargoTables extends IncludableSpecialPage {
 	private function displayActionLinks( $listOfColumns, $actionLinks, &$rowText ) {
 		foreach ( $listOfColumns as $action ) {
 			if ( array_key_exists( $action, $actionLinks ) ) {
-				$rowText .= Html::rawElement( 'td', [ "class" => "cargo-tablelist-actionbutton" ],
+				$rowText .= Html::rawElement( 'td', [ 'class' => 'cargo-tablelist-actionbutton' ],
 					$actionLinks[$action] );
 			} else {
 				$rowText .= Html::rawElement( 'td', null, '' );

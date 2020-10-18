@@ -6,6 +6,8 @@
  * @ingroup Cargo
  */
 
+use Cargo\CargoTableFactory;
+use Cargo\DatabaseFactory;
 use MediaWiki\Linker\LinkRenderer;
 use MediaWiki\Linker\LinkTarget;
 use MediaWiki\MediaWikiServices;
@@ -16,7 +18,11 @@ class CargoUtils {
 	 * @return Database
 	 */
 	public static function getDB() {
-		return CargoDatabase::get();
+		/**
+		 * @var DatabaseFactory $databaseFactory
+		 */
+		$databaseFactory = MediaWikiServices::getInstance()->getService('CargoDatabaseFactory');
+		return $databaseFactory->get();
 	}
 
 	/**
@@ -608,13 +614,17 @@ class CargoUtils {
 		return true;
 	}
 
+	private static function getTableFactory(): CargoTableFactory {
+		return MediaWikiServices::getInstance()->getService( 'CargoTableFactory' );
+	}
+
 	public static function tableExists( $tableName ) {
-		$table = new CargoTable( $tableName );
+		$table = self::getTableFactory()->get( $tableName );
 		return $table->exists();
 	}
 
 	public static function tableFullyExists( $tableName ) {
-		$table = new CargoTable( $tableName );
+		$table = self::getTableFactory()->get( $tableName );
 		return $table->fullyExists();
 	}
 

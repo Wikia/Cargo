@@ -1,6 +1,9 @@
 <?php
 
-use MediaWiki\Revision\SlotRecord;
+use Cargo\CargoPage;
+use Cargo\Parser\CargoStore;
+use Cargo\RecordStore;
+use MediaWiki\MediaWikiServices;
 
 /**
  * CargoHooks class
@@ -34,9 +37,12 @@ class CargoHooks {
 	}
 
 	public static function registerParserFunctions( &$parser ) {
+		$recordStore = self::getRecordStore();
+		$cargoStore = new CargoStore( $recordStore );
+
 		$parser->setFunctionHook( 'cargo_declare', [ 'CargoDeclare', 'run' ] );
 		$parser->setFunctionHook( 'cargo_attach', [ 'CargoAttach', 'run' ] );
-		$parser->setFunctionHook( 'cargo_store', [ 'CargoStore', 'run' ] );
+		$parser->setFunctionHook( 'cargo_store', [ $cargoStore, 'run' ] );
 		$parser->setFunctionHook( 'cargo_query', [ 'CargoQuery', 'run' ] );
 		$parser->setFunctionHook( 'cargo_compound_query', [ 'CargoCompoundQuery', 'run' ] );
 		$parser->setFunctionHook( 'recurring_event', [ 'CargoRecurringEvent', 'run' ] );
@@ -148,6 +154,10 @@ class CargoHooks {
 		return true;
 	}
 
+	private static function getRecordStore(): RecordStore {
+		return MediaWikiServices::getInstance()->getService( 'CargoRecordStore' );
+	}
+
 	/**
 	 * LinksUpdate hook handler which does the actual writes to cargo tables
 	 * for any #cargo_store calls on the parsed page.
@@ -158,15 +168,9 @@ class CargoHooks {
 		$title = $linksUpdate->getTitle();
 		$parserOutput = $linksUpdate->getParserOutput();
 		$page = new CargoPage( $title );
-		$page->storeData( $title, $parserOutput );
-		return true;
+		$recordStore = self::getRecordStore();
+		$recordStore->storePageRecords( $page, $parserOutput );
 	}
-
-	/**
-	 * Recursion through Content::getParserOutput should never happen, but if
-	 * it does, this will protect against that.
-	 */
-	private static $parseDepth = 0;
 
 	/**
 	 * Called by Content::getParserOutput at the start of a top-level parse.
@@ -187,11 +191,7 @@ class CargoHooks {
 		$generateHtml,
 		ParserOutput &$output
 	) {
-		self::$parseDepth++;
-
-		if ( self::$parseDepth > 1 ) {
-			wfDebugLog( 'cargo', 'ContentGetParserOutput called recursively' );
-		}
+		// This hook isn't needed if we're only beginning the tx at the first #cargo_store.
 	}
 
 	/**
@@ -207,11 +207,7 @@ class CargoHooks {
 		Title $title,
 		ParserOutput $output
 	) {
-		self::$parseDepth--;
-
-		if ( self::$parseDepth == 0 ) {
-			CargoStore::endTransaction();
-		}
+		self::getRecordStore()->endTransaction();
 	}
 
 	/**
@@ -278,14 +274,9 @@ class CargoHooks {
 		&$article, User &$user, $reason, $id, $content,
 		ManualLogEntry $logEntry
 	) {
-		$cdb = CargoDatabase::get();
-		$cdb->begin();
 		$title = $logEntry->getTarget();
 		$cargoPage = new CargoPage( $title );
-		$cargoPage->deleteCargoTableData( true );
-		$pageDataTable = new CargoPageDataTable();
-		$pageDataTable->deleteDataForPage( $cargoPage );
-		$cdb->commit();
+		self::getRecordStore()->deletePageRecords( $cargoPage );
 		return true;
 	}
 
@@ -299,33 +290,33 @@ class CargoHooks {
 	 * @return bool true
 	 */
 	public static function onUploadComplete( $upload ) {
-		$cdb = CargoUtils::getDB();
-		$cdb->begin( __METHOD__ );
-
-		// @todo(rnix): awkward
-		$table = new CargoFileDataTable();
+		$recordStore = self::getRecordStore();
 		$page = new CargoPage( $upload->getTitle() );
-		$table->deleteDataForPage( $page );
-		$table->storeDataForPage( $page, new ParserOutput() );
-
-		$cdb->commit( __METHOD__ );
+		$page->setFile( $upload->getLocalFile() );
+		$recordStore->storeFileData( $page );
 		return true;
 	}
 
 	public static function describeDBSchema( DatabaseUpdater $updater ) {
 		// DB updates
-		// For now, there's just a single SQL file for all DB types.
-
 		if ( $updater->getDB()->getType() == 'mysql' || $updater->getDB()->getType() == 'sqlite' ) {
 			$updater->addExtensionTable( 'cargo_tables', __DIR__ . "/sql/Cargo.sql" );
-			$updater->addExtensionTable( 'cargo_pages', __DIR__ . "/sql/Cargo.sql" );
 		} elseif ( $updater->getDB()->getType() == 'postgres' ) {
 			$updater->addExtensionUpdate( [ 'addTable', 'cargo_tables', __DIR__ . "/sql/Cargo.pg.sql", true ] );
-			$updater->addExtensionUpdate( [ 'addTable', 'cargo_pages', __DIR__ . "/sql/Cargo.pg.sql", true ] );
 		} elseif ( $updater->getDB()->getType() == 'mssql' ) {
 			$updater->addExtensionUpdate( [ 'addTable', 'cargo_tables', __DIR__ . "/sql/Cargo.mssql.sql", true ] );
-			$updater->addExtensionUpdate( [ 'addTable', 'cargo_pages', __DIR__ . "/sql/Cargo.mssql.sql", true ] );
 		}
+
+		// cargo_pages => _pageData migration
+		$updater->addExtensionUpdate( [
+			'runMaintenance',
+			UpdateCargoPageData::class,
+			__DIR__ . '/maintenance/updateCargoPageData.php'
+		] );
+
+		// Drop cargo_pages
+		$updater->addExtensionUpdate( [ 'dropTable', 'cargo_pages' ] );
+
 		return true;
 	}
 

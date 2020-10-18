@@ -1,10 +1,16 @@
 <?php
 
+namespace Cargo;
+
+use CargoFieldDescription;
+use CargoTableSchema;
+use ContentHandler;
 use MediaWiki\MediaWikiServices;
+use WikiPage;
 
 class CargoPageDataTable extends CargoTable {
-	public function __construct() {
-		parent::__construct( '_pageData' );
+	public function __construct( CargoTableStore $tableStore ) {
+		parent::__construct( $tableStore, '_pageData' );
 	}
 
 	public static function getSchemaForCreation() {
@@ -36,7 +42,7 @@ class CargoPageDataTable extends CargoTable {
 		if ( in_array( 'pageNameOrRedirect', $wgCargoPageDataColumns ) ) {
 			$fieldTypes['_pageNameOrRedirect'] = [ 'String', false ];
 		}
-		$fieldTypes['_cargoTables'] = [ 'String', true ];
+		$fieldTypes['_tables'] = [ 'String', true ];
 
 		$tableSchema = new CargoTableSchema();
 		foreach ( $fieldTypes as $field => $fieldVals ) {
@@ -53,30 +59,32 @@ class CargoPageDataTable extends CargoTable {
 		return $tableSchema;
 	}
 
-	public function storeDataForPage( CargoPage $page, ParserOutput $parserOutput ) {
+	public function getRecordsForPage( CargoPage $page ) {
 		$title = $page->getTitle();
 		if ( $title == null ) {
-			return;
+			return [];
+		}
+
+		$parserOutput = $page->getParserOutput();
+		if ( $parserOutput == null ) {
+			return [];
 		}
 
 		$tableSchema = $this->getSchema( true );
 		if ( $tableSchema == null ) {
-			return;
+			return [];
 		}
 
 		$wikiPage = WikiPage::factory( $title );
 		$pageDataValues = [];
 
-		if ( $tableSchema->hasField( '_creationDate' ) || $tableSchema->hasField( '_creator' ) ) {
+		if ( $tableSchema->hasField( '_creationDate' ) ) {
 			if ( method_exists( 'MediaWiki\Revision\RevisionLookup', 'getFirstRevision' ) ) {
 				// MW >= 1.35
 				$firstRevision = MediaWikiServices::getInstance()->getRevisionLookup()->getFirstRevision( $title );
 			} else {
 				$firstRevision = $title->getFirstRevision();
 			}
-		}
-
-		if ( $tableSchema->hasField( '_creationDate' ) ) {
 			if ( $firstRevision == null ) {
 				// This can sometimes happen.
 				$pageDataValues['_creationDate'] = null;
@@ -126,6 +134,13 @@ class CargoPageDataTable extends CargoTable {
 			}
 		}
 
-		CargoStore::storeAllData( $title, $this->getTableNameForUpdate(), $pageDataValues, $tableSchema );
+		if ( $tableSchema->hasField( '_tables' ) ) {
+			$tableNames = array_keys( $parserOutput->getExtensionData( 'CargoStorage' ) ?? [] );
+			$pageDataValues['_tables'] = implode( '|', $tableNames );
+		}
+
+		$record = new Record( $this->getTableName() );
+		$record->setFieldValues( $pageDataValues );
+		return [ $record ];
 	}
 }

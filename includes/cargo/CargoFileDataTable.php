@@ -1,10 +1,13 @@
 <?php
 
-use MediaWiki\MediaWikiServices;
+namespace Cargo;
+
+use CargoFieldDescription;
+use CargoTableSchema;
 
 class CargoFileDataTable extends CargoTable {
-	public function __construct() {
-		parent::__construct( '_fileData' );
+	public function __construct( CargoTableStore $tableStore ) {
+		parent::__construct( $tableStore, '_fileData' );
 	}
 
 	public static function getSchemaForCreation() {
@@ -48,28 +51,22 @@ class CargoFileDataTable extends CargoTable {
 		return $tableSchema;
 	}
 
-	public function storeDataForPage( CargoPage $page, ParserOutput $parserOutput ) {
+	public function getRecordsForPage( CargoPage $page ) {
 		global $wgCargoPDFToText, $wgCargoPDFInfo;
 
-		$title = $page->getTitle();
-		if ( $title == null ) {
-			return;
-		}
-
 		// Exit if we're not in the File namespace.
-		if ( $title->getNamespace() != NS_FILE ) {
-			return;
+		if ( $page->getNamespace() != NS_FILE ) {
+			return [];
 		}
 
 		$tableSchema = $this->getSchema( true );
 		if ( $tableSchema == null ) {
-			return;
+			return [];
 		}
 
-		$localRepo = RepoGroup::singleton()->getLocalRepo();
-		$file = $localRepo->findFile( $title );
-		if ( !$file ) {
-			return;
+		$file = $page->getFile();
+		if ( $file == null ) {
+			return [];
 		}
 
 		$fileDataValues = [];
@@ -125,10 +122,8 @@ class CargoFileDataTable extends CargoTable {
 			}
 		}
 
-		$fileDataTable = $this->isReadOnly()
-			? $this->getReplacementTableName()
-			: $this->getTableName();
-
-		CargoStore::storeAllData( $title, $fileDataTable, $fileDataValues, $tableSchema );
+		$record = new Record( $this->getTableName() );
+		$record->setFieldValues( $fileDataValues );
+		return [ $record ];
 	}
 }
