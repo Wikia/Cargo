@@ -71,6 +71,9 @@ class CargoUtils {
 			'password' => $dbPassword,
 			'dbname' => $dbName,
 			'tablePrefix' => $dbTablePrefix,
+			// MySQL >= 8.0.22 rejects using binary strings in regular expression functions
+			// such as REGEXP_LIKE(), heavily used across Cargo, so force UTF-8 client charset here.
+			'utf8Mode' => true,
 		);
 
 		if ( $type === "sqlite" ) {
