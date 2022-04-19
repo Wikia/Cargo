@@ -907,6 +907,10 @@ class CargoUtils {
 		if ( $wgCargoDBRowFormat != null ) {
 			$createSQL .= " ROW_FORMAT=$wgCargoDBRowFormat";
 		}
+		// Fandom edit: set utf-8 character set for Cargo tables.
+		// Note: this is to bring tables on any dbs created post-UCP in line with those imported
+		// from Gamepedia, since the database default charset is different between those.
+		$createSQL .= " CHARACTER SET utf8 COLLATE utf8_unicode_ci";
 		$cdb->query( $createSQL );
 
 		// Add an index for any field that's not of type Text,
