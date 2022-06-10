@@ -240,6 +240,7 @@ class CargoHooks {
 		// added to remain set.
 		CargoStore::$settings['origin'] = 'page save';
 		CargoUtils::parsePageForStorage( $wikiPage->getTitle(), $content->getNativeData() );
+		CargoStore::$settings['origin'] = 'nope';
 
 		// Also, save the "page data" and (if appropriate) "file data".
 		$cdb = CargoUtils::getDB();

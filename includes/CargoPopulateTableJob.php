@@ -47,6 +47,7 @@ class CargoPopulateTableJob extends Job {
 		CargoStore::$settings['origin'] = 'template';
 		CargoStore::$settings['dbTableName'] = $this->params['dbTableName'];
 		CargoUtils::parsePageForStorage( $this->title, ContentHandler::getContentText( $page->getContent() ) );
+		CargoStore::$settings['origin'] = 'nope';
 
 		// We need to unset this, if the job was called via runJobs.php,
 		// so that it doesn't affect other (non-Cargo) jobs, like page
